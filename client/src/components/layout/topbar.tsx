@@ -1,4 +1,5 @@
 import { Sun, Moon, Monitor, LogOut, User as UserIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Avatar,
@@ -26,6 +27,7 @@ export function Topbar() {
   const logout = useAuthStore((s) => s.logout);
   const themeMode = useThemeStore((s) => s.mode);
   const setMode = useThemeStore((s) => s.setMode);
+  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-(--color-border) bg-(--color-background)/80 px-6 backdrop-blur">
@@ -88,7 +90,7 @@ export function Topbar() {
               )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/profile')}>
               <UserIcon /> Profil
             </DropdownMenuItem>
             <DropdownMenuSeparator />

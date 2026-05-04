@@ -12,6 +12,7 @@ import { SchedulesPage } from '@/pages/schedules-page';
 import { EventsPage } from '@/pages/events-page';
 import { AttendancePage } from '@/pages/attendance-page';
 import { PayrollPage } from '@/pages/payroll-page';
+import { ProfilePage } from '@/pages/profile-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 
 export const router = createBrowserRouter([
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <DashboardPage /> },
+          { path: '/profile', element: <ProfilePage /> },
           // Super admin only
           {
             element: <ProtectedRoute roles={['super_admin']} />,

@@ -24,6 +24,14 @@ export function useCompanies() {
   });
 }
 
+export function useCompany(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['company', id],
+    queryFn: async () => (await api.get<Company>(`/companies/${id}`)).data,
+    enabled: !!id,
+  });
+}
+
 export function useCreateCompany() {
   const qc = useQueryClient();
   return useMutation({
