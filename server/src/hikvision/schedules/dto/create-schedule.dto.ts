@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsNumberString,
   IsOptional,
@@ -54,6 +55,24 @@ export class CreateScheduleDto {
   @IsOptional()
   @IsNumberString()
   bonusPerEarlyMinute?: string;
+
+  @IsOptional()
+  @IsIn(['none', 'fixed', 'flexible'])
+  lunchMode?: 'none' | 'fixed' | 'flexible';
+
+  @IsOptional()
+  @Matches(/^\d{2}:\d{2}$/)
+  lunchStart?: string;
+
+  @IsOptional()
+  @Matches(/^\d{2}:\d{2}$/)
+  lunchEnd?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(480)
+  lunchDurationMinutes?: number;
 
   @IsOptional()
   @IsBoolean()

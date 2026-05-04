@@ -61,6 +61,24 @@ export class ScheduleEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   bonusPerEarlyMinute!: string;
 
+  /**
+   * Tushlik rejimi:
+   * - none: tushlik yo'q, ish vaqtida har chiqish jarima
+   * - fixed: lunchStart..lunchEnd oralig'ida chiqish bepul. Boshqa vaqt chiqsa jarima
+   * - flexible: lunchDurationMinutes umumiy budget, istalgan vaqtda ishlatish mumkin
+   */
+  @Column({ type: 'varchar', length: 16, default: 'none' })
+  lunchMode!: 'none' | 'fixed' | 'flexible';
+
+  @Column({ type: 'varchar', length: 5, nullable: true })
+  lunchStart!: string | null;
+
+  @Column({ type: 'varchar', length: 5, nullable: true })
+  lunchEnd!: string | null;
+
+  @Column({ type: 'int', default: 0 })
+  lunchDurationMinutes!: number;
+
   @Column({ default: true })
   isActive!: boolean;
 

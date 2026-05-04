@@ -96,6 +96,8 @@ export interface Person {
   }>;
 }
 
+export type LunchMode = 'none' | 'fixed' | 'flexible';
+
 export interface Schedule {
   id: string;
   companyId: string;
@@ -108,6 +110,10 @@ export interface Schedule {
   earlyLeaveThresholdMinutes: number;
   penaltyPerLateMinute: string;
   bonusPerEarlyMinute: string;
+  lunchMode: LunchMode;
+  lunchStart: string | null;
+  lunchEnd: string | null;
+  lunchDurationMinutes: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -125,6 +131,7 @@ export interface Attendance {
   lastOutAt: string | null;
   lateMinutes: number;
   earlyLeaveMinutes: number;
+  lunchOverstayMinutes: number;
   workedMinutes: number;
   status: AttendanceStatus;
   person?: Person;

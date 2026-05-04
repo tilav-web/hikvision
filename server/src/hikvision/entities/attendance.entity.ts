@@ -62,6 +62,10 @@ export class AttendanceEntity {
   @Column({ type: 'int', default: 0 })
   earlyLeaveMinutes!: number;
 
+  /** Tushlik chegarasidan oshib chiqib ketgan daqiqalar (jarimaga sabab) */
+  @Column({ type: 'int', default: 0 })
+  lunchOverstayMinutes!: number;
+
   @Column({ type: 'int', default: 0 })
   workedMinutes!: number;
 

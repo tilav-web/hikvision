@@ -55,6 +55,10 @@ export function ScheduleForm({
   const [earlyThreshold, setEarlyThreshold] = useState('10');
   const [penaltyRate, setPenaltyRate] = useState('1500');
   const [bonusRate, setBonusRate] = useState('0');
+  const [lunchMode, setLunchMode] = useState<'none' | 'fixed' | 'flexible'>('none');
+  const [lunchStart, setLunchStart] = useState('12:00');
+  const [lunchEnd, setLunchEnd] = useState('13:00');
+  const [lunchDuration, setLunchDuration] = useState('60');
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -69,6 +73,10 @@ export function ScheduleForm({
       setEarlyThreshold(String(initial?.earlyLeaveThresholdMinutes ?? 10));
       setPenaltyRate(initial?.penaltyPerLateMinute ?? '1500');
       setBonusRate(initial?.bonusPerEarlyMinute ?? '0');
+      setLunchMode(initial?.lunchMode ?? 'none');
+      setLunchStart(initial?.lunchStart ?? '12:00');
+      setLunchEnd(initial?.lunchEnd ?? '13:00');
+      setLunchDuration(String(initial?.lunchDurationMinutes ?? 60));
       setIsActive(initial?.isActive ?? true);
     }
   }, [open, initial]);
@@ -89,6 +97,11 @@ export function ScheduleForm({
       earlyLeaveThresholdMinutes: parseInt(earlyThreshold, 10),
       penaltyPerLateMinute: penaltyRate || '0',
       bonusPerEarlyMinute: bonusRate || '0',
+      lunchMode,
+      lunchStart: lunchMode === 'fixed' ? lunchStart : undefined,
+      lunchEnd: lunchMode === 'fixed' ? lunchEnd : undefined,
+      lunchDurationMinutes:
+        lunchMode === 'flexible' ? parseInt(lunchDuration, 10) || 0 : 0,
       isActive,
     };
     if (!isEdit && isSuper) dto.companyId = companyId || undefined;
@@ -217,6 +230,67 @@ export function ScheduleForm({
                 onChange={(e) => setBonusRate(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="rounded-lg border border-(--color-border) p-4 space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="s-lm">Tushlik rejimi</Label>
+              <Select
+                id="s-lm"
+                value={lunchMode}
+                onChange={(e) => setLunchMode(e.target.value as any)}
+              >
+                <option value="none">Yo'q — har chiqish jarima</option>
+                <option value="fixed">Aniq vaqt (12:00–13:00) — faqat shu vaqt chiqish mumkin</option>
+                <option value="flexible">Sxemalashgan (1 soat) — istalgan vaqt, lekin jami vaqt chegaralangan</option>
+              </Select>
+              <p className="text-xs text-(--color-muted-foreground)">
+                {lunchMode === 'none' &&
+                  'Hodim ish vaqti davomida chiqsa, har daqiqa jarima sifatida hisoblanadi.'}
+                {lunchMode === 'fixed' &&
+                  'Hodim faqat belgilangan tushlik vaqtida chiqishi mumkin. Boshqa vaqt chiqsa — jarima.'}
+                {lunchMode === 'flexible' &&
+                  'Hodim istalgan vaqt va istalgan miqdorda chiqib, qaytib kelishi mumkin. Faqat jami chegaradan oshsa — jarima.'}
+              </p>
+            </div>
+
+            {lunchMode === 'fixed' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="s-lstart">Tushlik boshlanishi</Label>
+                  <Input
+                    id="s-lstart"
+                    type="time"
+                    value={lunchStart}
+                    onChange={(e) => setLunchStart(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="s-lend">Tushlik tugashi</Label>
+                  <Input
+                    id="s-lend"
+                    type="time"
+                    value={lunchEnd}
+                    onChange={(e) => setLunchEnd(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {lunchMode === 'flexible' && (
+              <div className="space-y-2">
+                <Label htmlFor="s-ldur">Jami tushlik vaqti (daqiqa)</Label>
+                <Input
+                  id="s-ldur"
+                  type="number"
+                  min={0}
+                  max={480}
+                  value={lunchDuration}
+                  onChange={(e) => setLunchDuration(e.target.value)}
+                  placeholder="60"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

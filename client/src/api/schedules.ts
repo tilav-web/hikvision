@@ -13,6 +13,10 @@ export interface ScheduleInput {
   earlyLeaveThresholdMinutes?: number;
   penaltyPerLateMinute?: string;
   bonusPerEarlyMinute?: string;
+  lunchMode?: 'none' | 'fixed' | 'flexible';
+  lunchStart?: string;
+  lunchEnd?: string;
+  lunchDurationMinutes?: number;
   isActive?: boolean;
 }
 

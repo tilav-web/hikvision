@@ -95,6 +95,7 @@ export function SchedulesPage() {
               <TableHead>Nomi</TableHead>
               <TableHead>Vaqt</TableHead>
               <TableHead>Ish kunlari</TableHead>
+              <TableHead>Tushlik</TableHead>
               <TableHead>Kechikish</TableHead>
               <TableHead>1 daq jarima</TableHead>
               <TableHead>Holat</TableHead>
@@ -103,9 +104,9 @@ export function SchedulesPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableEmpty colSpan={7} message="Yuklanmoqda..." />
+              <TableEmpty colSpan={8} message="Yuklanmoqda..." />
             ) : (data ?? []).length === 0 ? (
-              <TableEmpty colSpan={7} />
+              <TableEmpty colSpan={8} />
             ) : (
               (data ?? []).map((s) => (
                 <TableRow key={s.id}>
@@ -120,6 +121,19 @@ export function SchedulesPage() {
                   </TableCell>
                   <TableCell className="text-sm text-(--color-muted-foreground)">
                     {formatDays(s.workingDays)}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {s.lunchMode === 'none' && (
+                      <span className="text-(--color-muted-foreground)">—</span>
+                    )}
+                    {s.lunchMode === 'fixed' && (
+                      <span className="font-mono text-xs">
+                        {s.lunchStart}–{s.lunchEnd}
+                      </span>
+                    )}
+                    {s.lunchMode === 'flexible' && (
+                      <span className="text-xs">{s.lunchDurationMinutes} daq erkin</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">
                     {s.graceMinutes} daq grace, {s.lateThresholdMinutes} daq jarima

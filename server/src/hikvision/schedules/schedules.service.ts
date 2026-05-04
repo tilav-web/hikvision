@@ -54,6 +54,10 @@ export class SchedulesService {
       earlyLeaveThresholdMinutes: dto.earlyLeaveThresholdMinutes ?? 10,
       penaltyPerLateMinute: dto.penaltyPerLateMinute ?? '0',
       bonusPerEarlyMinute: dto.bonusPerEarlyMinute ?? '0',
+      lunchMode: dto.lunchMode ?? 'none',
+      lunchStart: dto.lunchStart ?? null,
+      lunchEnd: dto.lunchEnd ?? null,
+      lunchDurationMinutes: dto.lunchDurationMinutes ?? 0,
       isActive: dto.isActive ?? true,
     });
     return this.repo.save(entity);
