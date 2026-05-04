@@ -21,6 +21,11 @@ export class CompanyEntity {
   @Column({ length: 80 })
   slug!: string;
 
+  /** Mijoz agentlari shu token bilan ulanadi (bitta kampaniya = bitta token). */
+  @Index({ unique: true })
+  @Column({ length: 128 })
+  apiToken!: string;
+
   @Column({ type: 'varchar', length: 16, default: 'active' })
   status!: CompanyStatus;
 

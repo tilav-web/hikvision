@@ -26,7 +26,10 @@ export class ServerLink {
       reconnection: true,
       reconnectionDelay: this.cfg.reconnectDelayMs,
       reconnectionDelayMax: 30_000,
-      auth: { token: this.cfg.agentToken },
+      auth: {
+        token: this.cfg.companyToken,
+        name: this.cfg.agentName,
+      },
       rejectUnauthorized: false,
     });
 

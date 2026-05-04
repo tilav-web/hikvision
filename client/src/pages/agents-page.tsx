@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Plus, Pencil, Trash2, KeyRound, Copy, Check, Cpu, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Cpu, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,6 @@ import {
   useAgents,
   useCreateAgent,
   useDeleteAgent,
-  useRotateAgentToken,
   useUpdateAgent,
 } from '@/api/agents';
 import { useCompanies } from '@/api/companies';
@@ -41,29 +40,6 @@ import { getApiErrorMessage } from '@/lib/api';
 function formatDate(d: string | null): string {
   if (!d) return '—';
   return new Date(d).toLocaleString('uz-UZ');
-}
-
-function CopyToken({ token }: { token: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      size="icon"
-      variant="ghost"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(token);
-          setCopied(true);
-          toast.success('Token nusxalandi');
-          setTimeout(() => setCopied(false), 1500);
-        } catch {
-          toast.error('Nusxalab bo\'lmadi');
-        }
-      }}
-      title="Tokenni nusxalash"
-    >
-      {copied ? <Check /> : <Copy />}
-    </Button>
-  );
 }
 
 function AgentFormDialog({
@@ -113,13 +89,15 @@ function AgentFormDialog({
             {isEdit ? 'Agentni tahrirlash' : 'Yangi agent'}
           </DialogTitle>
           <DialogDescription>
-            Agent — bu Windows yoki RPI4 da ishlaydigan dastur. Bitta agent bir
-            nechta qurilmani boshqaradi.
+            Agent — Windows yoki RPI4 da ishlaydigan dastur. Mijoz qurilmasida{' '}
+            <code className="font-mono">.env</code> faylga shu nomni{' '}
+            <code className="font-mono">AGENT_NAME</code> sifatida joylashtiradi.
+            Kampaniya tokeni esa <strong>Kampaniyalar</strong> sahifasidan olinadi.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handle} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="a-name">Nomi</Label>
+            <Label htmlFor="a-name">Agent nomi (AGENT_NAME)</Label>
             <Input
               id="a-name"
               required
@@ -184,12 +162,10 @@ export function AgentsPage() {
   const create = useCreateAgent();
   const update = useUpdateAgent();
   const remove = useDeleteAgent();
-  const rotate = useRotateAgentToken();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Agent | null>(null);
   const [deleting, setDeleting] = useState<Agent | null>(null);
-  const [rotating, setRotating] = useState<Agent | null>(null);
 
   const companyMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -213,7 +189,7 @@ export function AgentsPage() {
     } else {
       create.mutate(dto, {
         onSuccess: () => {
-          toast.success('Agent yaratildi — tokenni saqlab oling');
+          toast.success('Agent yaratildi');
           setFormOpen(false);
         },
         onError: (e) => toast.error(getApiErrorMessage(e)),
@@ -232,22 +208,11 @@ export function AgentsPage() {
     });
   };
 
-  const onRotate = () => {
-    if (!rotating) return;
-    rotate.mutate(rotating.id, {
-      onSuccess: () => {
-        toast.success('Yangi token generatsiya qilindi');
-        setRotating(null);
-      },
-      onError: (e) => toast.error(getApiErrorMessage(e)),
-    });
-  };
-
   return (
     <div>
       <PageHeader
         title="Agentlar"
-        description="Mahalliy bridge agentlar (Windows/RPI4)"
+        description="Mahalliy bridge agentlar (Windows/RPI4) — kampaniya tokeni bilan ulanadi"
         actions={
           <Button
             onClick={() => {
@@ -260,23 +225,30 @@ export function AgentsPage() {
         }
       />
 
+      <div className="mb-4 rounded-md border border-(--color-border) bg-(--color-secondary)/30 p-3 text-sm text-(--color-muted-foreground)">
+        💡 Agent qurilmasidagi <code className="font-mono">.env</code> ga 2 ta qiymat:
+        <code className="font-mono mx-1">COMPANY_TOKEN</code>
+        (Kampaniyalar sahifasidan) +
+        <code className="font-mono mx-1">AGENT_NAME</code>
+        (bu yerda yaratgan agent nomi).
+      </div>
+
       <Card>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nomi</TableHead>
+              <TableHead>Nomi (AGENT_NAME)</TableHead>
               {isSuper && <TableHead>Kampaniya</TableHead>}
-              <TableHead>Token</TableHead>
               <TableHead>Holat</TableHead>
               <TableHead>So'nggi ulanish</TableHead>
-              <TableHead className="w-[160px] text-right">Amallar</TableHead>
+              <TableHead className="w-[100px] text-right">Amallar</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableEmpty colSpan={isSuper ? 6 : 5} message="Yuklanmoqda..." />
+              <TableEmpty colSpan={isSuper ? 5 : 4} message="Yuklanmoqda..." />
             ) : (data ?? []).length === 0 ? (
-              <TableEmpty colSpan={isSuper ? 6 : 5} />
+              <TableEmpty colSpan={isSuper ? 5 : 4} />
             ) : (
               (data ?? []).map((a) => (
                 <TableRow key={a.id}>
@@ -297,14 +269,6 @@ export function AgentsPage() {
                     </TableCell>
                   )}
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <span className="font-mono text-xs">
-                        {a.token.slice(0, 8)}...{a.token.slice(-4)}
-                      </span>
-                      <CopyToken token={a.token} />
-                    </div>
-                  </TableCell>
-                  <TableCell>
                     {a.isOnline ? (
                       <Badge variant="success">Online</Badge>
                     ) : (
@@ -316,14 +280,6 @@ export function AgentsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title="Tokenni yangilash"
-                        onClick={() => setRotating(a)}
-                      >
-                        <KeyRound />
-                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -367,21 +323,11 @@ export function AgentsPage() {
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}
         title="Agentni o'chirish?"
-        description={`"${deleting?.name}" agentiga biriktirilgan qurilmalar agent bog'lanmagan holatga o'tadi.`}
+        description={`"${deleting?.name}" agentiga biriktirilgan qurilmalar agent bog'lanmagan holatga o'tadi. Agar shu nom bilan agent qaytadan ulansa, yangi yozuv yaratiladi.`}
         destructive
         loading={remove.isPending}
         confirmText="O'chirish"
         onConfirm={onDelete}
-      />
-
-      <ConfirmDialog
-        open={!!rotating}
-        onOpenChange={(o) => !o && setRotating(null)}
-        title="Tokenni yangilash?"
-        description="Eski token darhol bekor bo'ladi va agent qayta ulanmaydi. Yangi tokenni agentning .env fayliga kiritish kerak bo'ladi."
-        confirmText="Ha, yangilash"
-        loading={rotate.isPending}
-        onConfirm={onRotate}
       />
     </div>
   );

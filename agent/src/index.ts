@@ -11,6 +11,7 @@ async function main(): Promise<void> {
   logger.info('───────────────────────────────────────────────');
   logger.info(`Hikvision Agent boshlanmoqda`);
   logger.info(`  server : ${config.serverUrl}`);
+  logger.info(`  agent  : ${config.agentName}`);
   logger.info(`  qurilma ro'yxati serverdan welcome'da olinadi`);
   logger.info('───────────────────────────────────────────────');
 

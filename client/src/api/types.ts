@@ -6,6 +6,7 @@ export interface Company {
   id: string;
   name: string;
   slug: string;
+  apiToken: string;
   status: CompanyStatus;
   paidFrom: string | null;
   paidUntil: string | null;
@@ -32,9 +33,8 @@ export interface User {
 
 export interface Agent {
   id: string;
-  companyId: string | null;
+  companyId: string;
   name: string;
-  token: string;
   hostInfo: string | null;
   isOnline: boolean;
   lastSeenAt: string | null;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Copy, Check, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import {
   useCompanies,
   useCreateCompany,
   useDeleteCompany,
+  useRotateCompanyToken,
   useUpdateCompany,
 } from '@/api/companies';
 import type { Company } from '@/api/types';
@@ -35,15 +36,52 @@ function isExpired(paidUntil: string | null): boolean {
   return new Date(paidUntil) < new Date();
 }
 
+function TokenCell({ token }: { token: string }) {
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      toast.success('Token nusxalandi');
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Nusxalab bo\'lmadi');
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="font-mono text-xs select-all max-w-[160px] truncate">
+        {revealed ? token : `${token.slice(0, 6)}••••${token.slice(-4)}`}
+      </span>
+      <Button
+        size="icon"
+        variant="ghost"
+        title={revealed ? 'Yashirish' : 'Ko\'rsatish'}
+        onClick={() => setRevealed((v) => !v)}
+      >
+        {revealed ? <EyeOff /> : <Eye />}
+      </Button>
+      <Button size="icon" variant="ghost" onClick={onCopy} title="Nusxalash">
+        {copied ? <Check /> : <Copy />}
+      </Button>
+    </div>
+  );
+}
+
 export function CompaniesPage() {
   const { data, isLoading } = useCompanies();
   const create = useCreateCompany();
   const update = useUpdateCompany();
   const remove = useDeleteCompany();
+  const rotate = useRotateCompanyToken();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [deleting, setDeleting] = useState<Company | null>(null);
+  const [rotating, setRotating] = useState<Company | null>(null);
 
   const companies = useMemo(() => data ?? [], [data]);
 
@@ -63,7 +101,7 @@ export function CompaniesPage() {
     } else {
       create.mutate(dto, {
         onSuccess: () => {
-          toast.success('Kampaniya yaratildi');
+          toast.success('Kampaniya yaratildi — token ko\'rinadi, mijozga yuboring');
           setFormOpen(false);
         },
         onError: (e) => toast.error(getApiErrorMessage(e)),
@@ -82,11 +120,22 @@ export function CompaniesPage() {
     });
   };
 
+  const onRotate = () => {
+    if (!rotating) return;
+    rotate.mutate(rotating.id, {
+      onSuccess: () => {
+        toast.success('Yangi token generatsiya qilindi — agentlarda yangilang');
+        setRotating(null);
+      },
+      onError: (e) => toast.error(getApiErrorMessage(e)),
+    });
+  };
+
   return (
     <div>
       <PageHeader
         title="Kampaniyalar"
-        description="SaaS mijozlari, to'lov holati va limitlar"
+        description="SaaS mijozlari, to'lov holati va API tokenlar"
         actions={
           <Button
             onClick={() => {
@@ -106,22 +155,26 @@ export function CompaniesPage() {
             <TableRow>
               <TableHead>Nomi</TableHead>
               <TableHead>Slug</TableHead>
+              <TableHead>API token (mijoz agentlariga)</TableHead>
               <TableHead>Holat</TableHead>
               <TableHead>To'lov muddati</TableHead>
               <TableHead className="text-center">Limitlar</TableHead>
-              <TableHead className="w-[120px] text-right">Amallar</TableHead>
+              <TableHead className="w-[140px] text-right">Amallar</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableEmpty colSpan={6} message="Yuklanmoqda..." />
+              <TableEmpty colSpan={7} message="Yuklanmoqda..." />
             ) : companies.length === 0 ? (
-              <TableEmpty colSpan={6} />
+              <TableEmpty colSpan={7} />
             ) : (
               companies.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell className="font-mono text-xs">{c.slug}</TableCell>
+                  <TableCell>
+                    <TokenCell token={c.apiToken} />
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={c.status === 'active' ? 'success' : 'secondary'}
@@ -142,6 +195,14 @@ export function CompaniesPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Tokenni yangilash"
+                        onClick={() => setRotating(c)}
+                      >
+                        <KeyRound />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -188,6 +249,16 @@ export function CompaniesPage() {
         loading={remove.isPending}
         confirmText="Ha, o'chirish"
         onConfirm={onDelete}
+      />
+
+      <ConfirmDialog
+        open={!!rotating}
+        onOpenChange={(o) => !o && setRotating(null)}
+        title="API tokenni yangilash?"
+        description={`"${rotating?.name}" kampaniyasining barcha agentlari darhol uziladi. Yangi tokenni mijozga yuborib, .env faylda yangilash kerak bo'ladi.`}
+        confirmText="Ha, yangilash"
+        loading={rotate.isPending}
+        onConfirm={onRotate}
       />
     </div>
   );

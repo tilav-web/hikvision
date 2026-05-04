@@ -24,9 +24,11 @@ import { AttendanceService } from './attendance/attendance.service';
 import { AttendanceController } from './attendance/attendance.controller';
 import { PenaltiesService } from './penalties/penalties.service';
 import { PenaltiesController } from './penalties/penalties.controller';
+import { CompaniesModule } from '../companies/companies.module';
 
 @Module({
   imports: [
+    CompaniesModule,
     TypeOrmModule.forFeature([
       AgentEntity,
       DeviceEntity,

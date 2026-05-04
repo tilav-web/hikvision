@@ -5,9 +5,14 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as crypto from 'node:crypto';
 import { CompanyEntity } from './company.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+
+function generateApiToken(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
 
 @Injectable()
 export class CompaniesService {
@@ -26,6 +31,10 @@ export class CompaniesService {
     return c;
   }
 
+  async findByApiToken(token: string): Promise<CompanyEntity | null> {
+    return this.repo.findOne({ where: { apiToken: token } });
+  }
+
   async create(dto: CreateCompanyDto): Promise<CompanyEntity> {
     const slug = dto.slug.toLowerCase();
     const exists = await this.repo.findOne({ where: { slug } });
@@ -34,6 +43,7 @@ export class CompaniesService {
     const company = this.repo.create({
       name: dto.name,
       slug,
+      apiToken: generateApiToken(),
       status: dto.status ?? 'active',
       paidFrom: dto.paidFrom ? new Date(dto.paidFrom) : null,
       paidUntil: dto.paidUntil ? new Date(dto.paidUntil) : null,
@@ -67,5 +77,16 @@ export class CompaniesService {
   async remove(id: string): Promise<void> {
     const res = await this.repo.delete(id);
     if (!res.affected) throw new NotFoundException('company not found');
+  }
+
+  /**
+   * Tokenni yangilash. Eski token darhol bekor bo'ladi va shu kampaniya
+   * agentlari qayta ulana olmaydi (yangi tokenni .env ga joylash kerak).
+   */
+  async rotateApiToken(id: string): Promise<{ apiToken: string }> {
+    const company = await this.findById(id);
+    company.apiToken = generateApiToken();
+    await this.repo.save(company);
+    return { apiToken: company.apiToken };
   }
 }

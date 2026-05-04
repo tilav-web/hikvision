@@ -40,7 +40,10 @@ function required(key: string): string {
 
 export const config = {
   serverUrl: required('SERVER_URL'),
-  agentToken: required('AGENT_TOKEN'),
+  /** Kampaniya API token — admin paneldan, Companies sahifasidan olinadi */
+  companyToken: required('COMPANY_TOKEN'),
+  /** Agent nomi — har kampaniya ichida unikal bo'lishi kerak */
+  agentName: required('AGENT_NAME'),
   logLevel: (process.env.LOG_LEVEL ?? 'info').toLowerCase(),
   reconnectDelayMs: Number.parseInt(process.env.RECONNECT_DELAY_MS ?? '5000', 10),
   cmdTimeoutMs: Number.parseInt(process.env.CMD_TIMEOUT_MS ?? '60000', 10),

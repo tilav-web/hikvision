@@ -57,4 +57,13 @@ export class CompaniesController {
   remove(@Param('id') id: string) {
     return this.companies.remove(id);
   }
+
+  @Post(':id/rotate-token')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary: 'Kampaniya API tokenini yangilash (eski token darhol bekor bo\'ladi)',
+  })
+  rotateToken(@Param('id') id: string) {
+    return this.companies.rotateApiToken(id);
+  }
 }

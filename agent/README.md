@@ -8,7 +8,12 @@ Bridge agent — bitta agent bir nechta Hikvision FaceID qurilmasini boshqarib, 
 [Hikvision N1, N2, ...]  <-- LAN/HTTPS ISAPI -->  [Agent]  <-- WSS -->  [Server]
 ```
 
-Agent token bilan serverga ulanadi. Server welcome event'ida shu agentga biriktirilgan qurilmalar ro'yxatini yuboradi (host, port, login, parol). Agent qurilmalar bilan to'g'ridan-to'g'ri ISAPI orqali ishlaydi.
+## Auth modeli (Telegram bot uslubi)
+
+- **`COMPANY_TOKEN`** — kampaniya yaratilganda avtomatik generatsiya qilinadi. Bitta kampaniya = bitta token. Mijoz istalgancha agent ishlatishi mumkin, hammasi shu token bilan ulanadi. Token kompromit qilinsa — admin paneldan "Tokenni yangilash" bilan rotate qilamiz.
+- **`AGENT_NAME`** — har kampaniya ichida unikal nom (masalan "Bosh ofis - RPI4"). Server uni shu nom bilan tanib oladi va admin panelda alohida ko'rsatadi. Agar agent shu nom bilan oldindan yaratilmagan bo'lsa, server avtomatik yozuv yaratadi.
+
+Server welcome event'ida shu agentga biriktirilgan qurilmalar ro'yxatini yuboradi (host, port, login, parol). Agent qurilmalar bilan to'g'ridan-to'g'ri ISAPI orqali ishlaydi.
 
 Server agentga buyruq yuborganida har doim `deviceId` ni ham qo'shib yuboradi — agent qaysi qurilmaga buyruq berishni shunda biladi.
 
@@ -17,7 +22,8 @@ Server agentga buyruq yuborganida har doim `deviceId` ni ham qo'shib yuboradi �
 ```bash
 npm install
 cp .env.example .env
-# AGENT_TOKEN ni serverda agent yaratganingizda chiqqan tokendan oling
+# 1. Tokenni "Kampaniyalar" sahifasidan oling (Ko'rsatish 👁 + Nusxalash 📋)
+# 2. AGENT_NAME ni "Agentlar" sahifasidan oling (yoki yangisini yarating)
 ```
 
 ## Production deployment (mijoz qurilmasiga)

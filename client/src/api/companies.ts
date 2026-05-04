@@ -59,3 +59,14 @@ export function useDeleteCompany() {
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
+
+export function useRotateCompanyToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (
+        await api.post<{ apiToken: string }>(`/companies/${id}/rotate-token`)
+      ).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}

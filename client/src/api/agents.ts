@@ -49,16 +49,3 @@ export function useDeleteAgent() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
   });
 }
-
-export function useRotateAgentToken() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) =>
-      (
-        await api.post<{ id: string; token: string }>(
-          `/hikvision/agents/${id}/rotate-token`,
-        )
-      ).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
-  });
-}

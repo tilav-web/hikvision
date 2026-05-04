@@ -81,10 +81,10 @@ Vite proxy avtomatik `/api` so'rovlarini `localhost:3000` ga uzatadi.
 Agent faqat haqiqiy Hikvision qurilmasi bo'lganda kerak. Sinov uchun:
 
 1. Client'da super-admin sifatida kiring
-2. **Kampaniyalar** → yangi kampaniya yarating
-3. **Agentlar** → yangi agent yarating
-4. Agent tokenini nusxalang (📋 ikonkasi)
-5. `agent/.env` dagi `AGENT_TOKEN` ga joylang
+2. **Kampaniyalar** → yangi kampaniya yarating (token avtomatik generatsiya qilinadi)
+3. API token ustunidan token nusxalash (👁 ko'rsatish + 📋 nusxalash) → `agent/.env` dagi `COMPANY_TOKEN` ga joylang
+4. **Agentlar** → yangi agent yarating, nom kiriting ("Test RPI")
+5. Shu nomni `agent/.env` dagi `AGENT_NAME` ga yozing
 
 ```bash
 cd agent

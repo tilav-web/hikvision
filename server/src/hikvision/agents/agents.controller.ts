@@ -36,7 +36,8 @@ export class AgentsController {
   @Post()
   @Roles('super_admin', 'company_admin')
   @ApiOperation({
-    summary: 'Yangi agent yaratish (token avtomatik generatsiya qilinadi)',
+    summary:
+      'Yangi agent yaratish (kampaniya tokeni bo\'yicha auth qilinadi, agent uchun alohida token yo\'q)',
   })
   create(@CurrentUser() current: AuthUser, @Body() dto: CreateAgentDto) {
     return this.service.create(current, dto);
@@ -69,17 +70,5 @@ export class AgentsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.service.remove(current, id);
-  }
-
-  @Post(':id/rotate-token')
-  @Roles('super_admin', 'company_admin')
-  @ApiOperation({
-    summary: 'Agent tokenini yangilash (eski token darhol bekor bo\'ladi)',
-  })
-  rotateToken(
-    @CurrentUser() current: AuthUser,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
-    return this.service.rotateToken(current, id);
   }
 }

@@ -15,6 +15,8 @@ import * as crypto from 'node:crypto';
 import { AgentEntity } from '../entities/agent.entity';
 import { DeviceEntity } from '../entities/device.entity';
 import { decryptSecret } from '../../common/crypto.util';
+import { CompaniesService } from '../../companies/companies.service';
+import { AgentsService } from './agents.service';
 
 interface PendingCommand {
   resolve: (data: any) => void;
@@ -50,9 +52,12 @@ interface AgentDevicePayload {
 }
 
 /**
- * Agent gateway. Bitta agent (Windows/RPI) bitta token bilan ulanadi
- * va serverdan qaysi qurilmalarni boshqarishni oladi. Server agentga
- * `agent:cmd` yuborganida payload da `deviceId` ham bo'ladi.
+ * Agent gateway. Auth: kampaniya `apiToken` + agent `name` (har kampaniya ichida unikal).
+ * Telegram bot uslubi: 1 kampaniya = 1 token, mijoz istalgan agentlarni shu token bilan ulaydi.
+ *
+ * Mijoz `.env`:
+ *   COMPANY_TOKEN=<Companies sahifasidan>
+ *   AGENT_NAME=Bosh ofis - RPI4
  */
 @WebSocketGateway({
   namespace: '/agents',
@@ -74,24 +79,42 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly agentRepo: Repository<AgentEntity>,
     @InjectRepository(DeviceEntity)
     private readonly deviceRepo: Repository<DeviceEntity>,
+    private readonly companies: CompaniesService,
+    private readonly agentsService: AgentsService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
-    const auth = (client.handshake.auth ?? {}) as { token?: string };
+    const auth = (client.handshake.auth ?? {}) as {
+      token?: string;
+      name?: string;
+    };
     const token = auth.token;
+    const name = auth.name?.trim();
 
-    if (!token) {
-      this.logger.warn(`agent rad etildi: token yo'q`);
+    if (!token || !name) {
+      this.logger.warn(`agent rad etildi: token yoki name yo'q`);
       client.disconnect(true);
       return;
     }
 
-    const agent = await this.agentRepo.findOne({ where: { token } });
-    if (!agent) {
+    const company = await this.companies.findByApiToken(token);
+    if (!company) {
       this.logger.warn(`agent rad etildi: noto'g'ri token`);
       client.disconnect(true);
       return;
     }
+    if (company.status !== 'active') {
+      this.logger.warn(
+        `agent rad etildi: kampaniya ${company.slug} faol emas`,
+      );
+      client.disconnect(true);
+      return;
+    }
+
+    const agent = await this.agentsService.findOrCreateForConnect(
+      company.id,
+      name,
+    );
 
     const old = this.sockets.get(agent.id);
     if (old && old.id !== client.id) {
@@ -99,7 +122,7 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     this.sockets.set(agent.id, client);
     (client.data as any).agentId = agent.id;
-    (client.data as any).companyId = agent.companyId;
+    (client.data as any).companyId = company.id;
 
     await this.agentRepo.update(agent.id, {
       isOnline: true,
@@ -108,7 +131,7 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const devices = await this.loadDevices(agent.id);
     this.logger.log(
-      `✅ agent ulandi: agentId=${agent.id} (${agent.name}), devices=${devices.length}`,
+      `✅ agent ulandi: ${name} (${company.slug}), devices=${devices.length}`,
     );
 
     client.emit('agent:welcome', {
@@ -147,7 +170,8 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ): Promise<T> {
     const device = await this.deviceRepo.findOne({ where: { id: deviceId } });
     if (!device) throw new Error(`device ${deviceId} topilmadi`);
-    if (!device.agentId) throw new Error(`device ${deviceId} hech bir agentga bog'lanmagan`);
+    if (!device.agentId)
+      throw new Error(`device ${deviceId} hech bir agentga bog'lanmagan`);
 
     const sock = this.sockets.get(device.agentId);
     if (!sock) throw new Error(`agent ${device.agentId} ulanmagan`);
@@ -200,7 +224,6 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ): Promise<void> {
     const agentId = (client.data as any)?.agentId as string | undefined;
     if (!agentId || !payload?.deviceId) return;
-    // TODO: Phase 2 — convert to AccessEvent and persist
     this.logger.debug(
       `agent ${agentId} event for device ${payload.deviceId}: ${JSON.stringify(payload.event).slice(0, 200)}`,
     );
