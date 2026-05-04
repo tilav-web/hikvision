@@ -3,20 +3,48 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { PersonDeviceEntity } from './person-device.entity';
 import { AccessEventEntity } from './access-event.entity';
+import { AgentEntity } from './agent.entity';
+import { CompanyEntity } from '../../companies/company.entity';
+
+export type DeviceMode = 'entry' | 'exit' | 'both';
 
 @Entity('hik_devices')
 export class DeviceEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  companyId!: string | null;
+
+  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'companyId' })
+  company!: CompanyEntity | null;
+
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  agentId!: string | null;
+
+  @ManyToOne(() => AgentEntity, (a) => a.devices, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'agentId' })
+  agent!: AgentEntity | null;
+
   @Column({ length: 120 })
   name!: string;
+
+  @Column({ type: 'varchar', length: 8, default: 'both' })
+  mode!: DeviceMode;
 
   @Index()
   @Column({ length: 64 })
@@ -57,15 +85,6 @@ export class DeviceEntity {
 
   @Column({ default: false })
   listenerConfigured!: boolean;
-
-  @Column({ type: 'varchar', length: 128, nullable: true })
-  agentToken!: string | null;
-
-  @Column({ default: false })
-  agentOnline!: boolean;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  agentLastSeenAt!: Date | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;

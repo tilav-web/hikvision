@@ -9,6 +9,10 @@ import {
 } from 'typeorm';
 import { DeviceEntity } from './device.entity';
 import { PersonEntity } from './person.entity';
+import { CompanyEntity } from '../../companies/company.entity';
+
+export type AccessDirection = 'in' | 'out';
+export type DirectionSource = 'device_mode' | 'button' | 'manual';
 
 export type EventCategory =
   | 'accessGranted'
@@ -32,9 +36,17 @@ export type VerifyMode =
 @Entity('hik_access_events')
 @Index(['deviceId', 'capturedAt'])
 @Index(['personId', 'capturedAt'])
+@Index(['companyId', 'capturedAt'])
 export class AccessEventEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  companyId!: string | null;
+
+  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'companyId' })
+  company!: CompanyEntity | null;
 
   @Column('uuid')
   deviceId!: string;
@@ -57,6 +69,12 @@ export class AccessEventEntity {
 
   @Column({ type: 'varchar', length: 24, default: 'unknown' })
   verifyMode!: VerifyMode;
+
+  @Column({ type: 'varchar', length: 8, nullable: true })
+  direction!: AccessDirection | null;
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  directionSource!: DirectionSource | null;
 
   @Column({ type: 'varchar', length: 120, nullable: true })
   personName!: string | null;

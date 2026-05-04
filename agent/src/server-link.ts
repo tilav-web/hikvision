@@ -1,9 +1,13 @@
 import { io, Socket } from 'socket.io-client';
 import { CommandEnvelope, CommandHandler, CommandResult } from './commands';
 import { AgentConfig } from './config';
-import { DeviceCredentials } from './isapi/types';
-import { IsapiClient } from './isapi/isapi-client';
+import { DevicePool, ManagedDevice } from './device-pool';
 import { logger } from './logger';
+
+interface WelcomePayload {
+  agentId: string;
+  devices: ManagedDevice[];
+}
 
 export class ServerLink {
   private socket: Socket | null = null;
@@ -11,29 +15,24 @@ export class ServerLink {
 
   constructor(
     private readonly cfg: AgentConfig,
+    private readonly pool: DevicePool,
     private readonly handler: CommandHandler,
-    private readonly onCredentials: (creds: DeviceCredentials) => void,
   ) {}
 
   start(): void {
     const url = this.cfg.serverUrl.replace(/\/+$/, '');
     this.socket = io(`${url}/agents`, {
-      // pkg-bundled binarda 'ws' modulini boot qilish muammoli — polling'ga ham
-      // ruxsat berib, websocket'ga upgrade'ni socket.io o'zi qiladi
       transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionDelay: this.cfg.reconnectDelayMs,
       reconnectionDelayMax: 30_000,
-      auth: {
-        token: this.cfg.agentToken,
-        deviceId: this.cfg.deviceId,
-      },
+      auth: { token: this.cfg.agentToken },
       rejectUnauthorized: false,
     });
 
     this.socket.on('connect', () => {
       this.connected = true;
-      logger.info(`✅ serverga ulandi (${url}), deviceId=${this.cfg.deviceId}`);
+      logger.info(`✅ serverga ulandi (${url})`);
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -45,29 +44,34 @@ export class ServerLink {
       logger.error(`ulanish xatosi: ${err.message}`);
     });
 
+    this.socket.on('agent:welcome', (data: WelcomePayload) => {
+      logger.info(
+        `🎉 ro'yxatdan o'tdi: agentId=${data.agentId}, devices=${data.devices?.length ?? 0}`,
+      );
+      this.pool.upsert(data.devices ?? []);
+    });
+
+    this.socket.on('agent:devices:update', (data: { devices: ManagedDevice[] }) => {
+      logger.info(`🔄 qurilmalar ro'yxati yangilandi: ${data.devices.length}`);
+      this.pool.upsert(data.devices);
+    });
+
     this.socket.on(
-      'agent:welcome',
-      (data: { deviceId: string; device?: DeviceCredentials }) => {
-        logger.info(`🎉 ro'yxatdan o'tdi: deviceId=${data.deviceId}`);
-        if (data.device) {
-          this.onCredentials(data.device);
-          logger.info(
-            `🔑 aparat ma'lumotlari serverdan olindi: ${data.device.host}:${data.device.port}`,
-          );
+      'agent:cmd',
+      async (cmd: CommandEnvelope, ack?: (r: CommandResult) => void) => {
+        const result = await this.handler.execute(cmd);
+        if (typeof ack === 'function') {
+          try {
+            ack(result);
+          } catch {}
         }
+        this.socket?.emit('agent:cmd:result', result);
       },
     );
+  }
 
-    this.socket.on('agent:cmd', async (cmd: CommandEnvelope, ack?: (r: CommandResult) => void) => {
-      const result = await this.handler.execute(cmd);
-      // Ikki kanaldan ham qaytaramiz: ack (agar callback berilgan) + alohida event (durable)
-      if (typeof ack === 'function') {
-        try {
-          ack(result);
-        } catch {}
-      }
-      this.socket?.emit('agent:cmd:result', result);
-    });
+  forwardEvent(deviceId: string, event: Record<string, any>): void {
+    this.socket?.emit('agent:event', { deviceId, event });
   }
 
   isConnected(): boolean {

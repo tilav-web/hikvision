@@ -4,6 +4,7 @@ import { DeviceEntity } from './entities/device.entity';
 import { PersonEntity } from './entities/person.entity';
 import { PersonDeviceEntity } from './entities/person-device.entity';
 import { AccessEventEntity } from './entities/access-event.entity';
+import { AgentEntity } from './entities/agent.entity';
 import { DevicesService } from './devices/devices.service';
 import { DevicesController } from './devices/devices.controller';
 import { PersonsService } from './persons/persons.service';
@@ -16,6 +17,7 @@ import { AgentsGateway } from './agents/agents.gateway';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      AgentEntity,
       DeviceEntity,
       PersonEntity,
       PersonDeviceEntity,

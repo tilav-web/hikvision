@@ -12,6 +12,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Repository } from 'typeorm';
 import * as crypto from 'node:crypto';
+import { AgentEntity } from '../entities/agent.entity';
 import { DeviceEntity } from '../entities/device.entity';
 import { decryptSecret } from '../../common/crypto.util';
 
@@ -23,6 +24,7 @@ interface PendingCommand {
 
 export interface AgentCommand {
   id: string;
+  deviceId: string;
   action: string;
   payload: any;
 }
@@ -34,9 +36,23 @@ export interface AgentResult {
   error?: string;
 }
 
+interface AgentDevicePayload {
+  id: string;
+  name: string;
+  mode: 'entry' | 'exit' | 'both';
+  credentials: {
+    host: string;
+    port: number;
+    useHttps: boolean;
+    username: string;
+    password: string;
+  };
+}
+
 /**
- * Mijoz tomonidagi agent shu gateway'ga ulanadi.
- * Server u orqali mahalliy aparatga `addUser`, `uploadFace` va h.k. komandalarini yuboradi.
+ * Agent gateway. Bitta agent (Windows/RPI) bitta token bilan ulanadi
+ * va serverdan qaysi qurilmalarni boshqarishni oladi. Server agentga
+ * `agent:cmd` yuborganida payload da `deviceId` ham bo'ladi.
  */
 @WebSocketGateway({
   namespace: '/agents',
@@ -48,90 +64,96 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
-  // deviceId → socket
+  // agentId → socket
   private readonly sockets = new Map<string, Socket>();
   // commandId → resolver
   private readonly pending = new Map<string, PendingCommand>();
 
   constructor(
+    @InjectRepository(AgentEntity)
+    private readonly agentRepo: Repository<AgentEntity>,
     @InjectRepository(DeviceEntity)
     private readonly deviceRepo: Repository<DeviceEntity>,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
-    const auth = (client.handshake.auth ?? {}) as { token?: string; deviceId?: string };
-    const { token, deviceId } = auth;
+    const auth = (client.handshake.auth ?? {}) as { token?: string };
+    const token = auth.token;
 
-    if (!token || !deviceId) {
-      this.logger.warn(`agent rad etildi: token yoki deviceId yo'q`);
+    if (!token) {
+      this.logger.warn(`agent rad etildi: token yo'q`);
       client.disconnect(true);
       return;
     }
 
-    const device = await this.deviceRepo.findOne({ where: { id: deviceId } });
-    if (!device || !device.agentToken || device.agentToken !== token) {
-      this.logger.warn(`agent rad etildi: noto'g'ri token (deviceId=${deviceId})`);
+    const agent = await this.agentRepo.findOne({ where: { token } });
+    if (!agent) {
+      this.logger.warn(`agent rad etildi: noto'g'ri token`);
       client.disconnect(true);
       return;
     }
 
-    // Eski ulanish bo'lsa, almashtiramiz
-    const old = this.sockets.get(deviceId);
+    const old = this.sockets.get(agent.id);
     if (old && old.id !== client.id) {
       old.disconnect(true);
     }
-    this.sockets.set(deviceId, client);
-    (client.data as any).deviceId = deviceId;
+    this.sockets.set(agent.id, client);
+    (client.data as any).agentId = agent.id;
+    (client.data as any).companyId = agent.companyId;
 
-    await this.deviceRepo.update(deviceId, {
-      agentOnline: true,
-      agentLastSeenAt: new Date(),
+    await this.agentRepo.update(agent.id, {
+      isOnline: true,
+      lastSeenAt: new Date(),
     });
 
-    this.logger.log(`✅ agent ulandi: deviceId=${deviceId}, sockId=${client.id}`);
-    // Agent kerakli aparat ma'lumotlarini server'dan oladi (parolni .env'ga yozmasin)
+    const devices = await this.loadDevices(agent.id);
+    this.logger.log(
+      `✅ agent ulandi: agentId=${agent.id} (${agent.name}), devices=${devices.length}`,
+    );
+
     client.emit('agent:welcome', {
-      deviceId,
-      device: {
-        host: device.host,
-        port: device.port,
-        useHttps: device.useHttps,
-        username: device.username,
-        password: decryptSecret(device.passwordEnc),
-      },
+      agentId: agent.id,
+      devices,
     });
   }
 
   async handleDisconnect(client: Socket): Promise<void> {
-    const deviceId = (client.data as any)?.deviceId as string | undefined;
-    if (!deviceId) return;
-    const cur = this.sockets.get(deviceId);
+    const agentId = (client.data as any)?.agentId as string | undefined;
+    if (!agentId) return;
+    const cur = this.sockets.get(agentId);
     if (cur === client) {
-      this.sockets.delete(deviceId);
-      await this.deviceRepo.update(deviceId, {
-        agentOnline: false,
-        agentLastSeenAt: new Date(),
+      this.sockets.delete(agentId);
+      await this.agentRepo.update(agentId, {
+        isOnline: false,
+        lastSeenAt: new Date(),
       });
-      this.logger.warn(`❌ agent uzildi: deviceId=${deviceId}`);
+      this.logger.warn(`❌ agent uzildi: agentId=${agentId}`);
     }
   }
 
-  isOnline(deviceId: string): boolean {
-    return this.sockets.has(deviceId);
+  isAgentOnline(agentId: string): boolean {
+    return this.sockets.has(agentId);
   }
 
+  /**
+   * Server qurilmaga buyruq yuboradi: bu yerda biz qurilmaga tegishli
+   * agentni topib, uning socketi orqali yuboramiz.
+   */
   async sendCommand<T = any>(
     deviceId: string,
     action: string,
     payload: any,
     timeoutMs = 60_000,
   ): Promise<T> {
-    const sock = this.sockets.get(deviceId);
-    if (!sock) {
-      throw new Error(`agent ${deviceId} ulanmagan`);
-    }
+    const device = await this.deviceRepo.findOne({ where: { id: deviceId } });
+    if (!device) throw new Error(`device ${deviceId} topilmadi`);
+    if (!device.agentId) throw new Error(`device ${deviceId} hech bir agentga bog'lanmagan`);
+
+    const sock = this.sockets.get(device.agentId);
+    if (!sock) throw new Error(`agent ${device.agentId} ulanmagan`);
+
     const id = crypto.randomUUID();
-    const cmd: AgentCommand = { id, action, payload };
+    const cmd: AgentCommand = { id, deviceId, action, payload };
 
     return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -143,9 +165,20 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  /**
+   * Agentga uning qurilma ro'yxati o'zgarganini xabar qilish
+   * (CRUD bilan device yangilanganda chaqiriladi).
+   */
+  async pushDeviceUpdate(agentId: string): Promise<void> {
+    const sock = this.sockets.get(agentId);
+    if (!sock) return;
+    const devices = await this.loadDevices(agentId);
+    sock.emit('agent:devices:update', { devices });
+  }
+
   @SubscribeMessage('agent:cmd:result')
   onResult(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() _client: Socket,
     @MessageBody() result: AgentResult,
   ): void {
     if (!result || !result.id) return;
@@ -158,5 +191,34 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } else {
       p.reject(new Error(result.error ?? 'agent error'));
     }
+  }
+
+  @SubscribeMessage('agent:event')
+  async onAgentEvent(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { deviceId: string; event: Record<string, any> },
+  ): Promise<void> {
+    const agentId = (client.data as any)?.agentId as string | undefined;
+    if (!agentId || !payload?.deviceId) return;
+    // TODO: Phase 2 — convert to AccessEvent and persist
+    this.logger.debug(
+      `agent ${agentId} event for device ${payload.deviceId}: ${JSON.stringify(payload.event).slice(0, 200)}`,
+    );
+  }
+
+  private async loadDevices(agentId: string): Promise<AgentDevicePayload[]> {
+    const devices = await this.deviceRepo.find({ where: { agentId } });
+    return devices.map((d) => ({
+      id: d.id,
+      name: d.name,
+      mode: d.mode,
+      credentials: {
+        host: d.host,
+        port: d.port,
+        useHttps: d.useHttps,
+        username: d.username,
+        password: decryptSecret(d.passwordEnc),
+      },
+    }));
   }
 }

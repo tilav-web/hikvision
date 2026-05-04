@@ -253,8 +253,8 @@ export class PersonsService {
       const device = await this.deviceRepo.findOne({ where: { id: deviceId } });
       if (!device) throw new Error(`device ${deviceId} topilmadi`);
 
-      // Agent rejimi: aparatga to'g'ridan-to'g'ri emas, agent orqali yuboramiz
-      if (device.agentToken && this.agentsGateway.isOnline(deviceId)) {
+      // Agent rejimi: aparat agentga bog'langan va agent online bo'lsa
+      if (device.agentId && this.agentsGateway.isAgentOnline(device.agentId)) {
         await this.syncOneViaAgent(person, deviceId, linkRecord);
       } else {
         await this.syncOneDirect(person, deviceId, linkRecord);

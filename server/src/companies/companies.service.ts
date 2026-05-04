@@ -1,0 +1,71 @@
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CompanyEntity } from './company.entity';
+import { CreateCompanyDto } from './dto/create-company.dto';
+import { UpdateCompanyDto } from './dto/update-company.dto';
+
+@Injectable()
+export class CompaniesService {
+  constructor(
+    @InjectRepository(CompanyEntity)
+    private readonly repo: Repository<CompanyEntity>,
+  ) {}
+
+  list(): Promise<CompanyEntity[]> {
+    return this.repo.find({ order: { createdAt: 'DESC' } });
+  }
+
+  async findById(id: string): Promise<CompanyEntity> {
+    const c = await this.repo.findOne({ where: { id } });
+    if (!c) throw new NotFoundException('company not found');
+    return c;
+  }
+
+  async create(dto: CreateCompanyDto): Promise<CompanyEntity> {
+    const slug = dto.slug.toLowerCase();
+    const exists = await this.repo.findOne({ where: { slug } });
+    if (exists) throw new ConflictException('slug already in use');
+
+    const company = this.repo.create({
+      name: dto.name,
+      slug,
+      status: dto.status ?? 'active',
+      paidFrom: dto.paidFrom ? new Date(dto.paidFrom) : null,
+      paidUntil: dto.paidUntil ? new Date(dto.paidUntil) : null,
+      maxDevices: dto.maxDevices ?? 0,
+      maxEmployees: dto.maxEmployees ?? 0,
+      contactPhone: dto.contactPhone ?? null,
+      contactEmail: dto.contactEmail ?? null,
+      notes: dto.notes ?? null,
+    });
+    return this.repo.save(company);
+  }
+
+  async update(id: string, dto: UpdateCompanyDto): Promise<CompanyEntity> {
+    const company = await this.findById(id);
+    if (dto.name !== undefined) company.name = dto.name;
+    if (dto.status !== undefined) company.status = dto.status;
+    if (dto.paidFrom !== undefined) {
+      company.paidFrom = dto.paidFrom ? new Date(dto.paidFrom) : null;
+    }
+    if (dto.paidUntil !== undefined) {
+      company.paidUntil = dto.paidUntil ? new Date(dto.paidUntil) : null;
+    }
+    if (dto.maxDevices !== undefined) company.maxDevices = dto.maxDevices;
+    if (dto.maxEmployees !== undefined) company.maxEmployees = dto.maxEmployees;
+    if (dto.contactPhone !== undefined) company.contactPhone = dto.contactPhone;
+    if (dto.contactEmail !== undefined) company.contactEmail = dto.contactEmail;
+    if (dto.notes !== undefined) company.notes = dto.notes;
+    return this.repo.save(company);
+  }
+
+  async remove(id: string): Promise<void> {
+    const res = await this.repo.delete(id);
+    if (!res.affected) throw new NotFoundException('company not found');
+  }
+}

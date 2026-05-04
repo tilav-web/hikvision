@@ -79,15 +79,4 @@ export class DevicesController {
   syncTime(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.syncTime(id).then(() => ({ ok: true }));
   }
-
-  @Post(':id/agent-token')
-  @ApiOperation({
-    summary: 'Aparat uchun agent tokenini generatsiya qilish (yangidan)',
-    description:
-      'Bu tokenni agent .env fayliga AGENT_TOKEN sifatida joylanadi. ' +
-      'Eski token avtomatik bekor bo\'ladi.',
-  })
-  rotateAgentToken(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.rotateAgentToken(id);
-  }
 }

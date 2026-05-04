@@ -3,23 +3,37 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { PersonDeviceEntity } from './person-device.entity';
 import { AccessEventEntity } from './access-event.entity';
+import { CompanyEntity } from '../../companies/company.entity';
 
 export type UserType = 'normal' | 'visitor' | 'blackList' | 'patient' | 'maintenance';
 export type Gender = 'male' | 'female' | 'unknown';
 
 @Entity('hik_persons')
+@Index('uniq_company_employee', ['companyId', 'employeeNo'], {
+  unique: true,
+  where: '"companyId" IS NOT NULL',
+})
 export class PersonEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  companyId!: string | null;
+
+  @ManyToOne(() => CompanyEntity, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'companyId' })
+  company!: CompanyEntity | null;
+
   // ISAPI'dagi employeeNo — aparatdagi unikal user ID (string, raqam ham bo'lishi mumkin)
-  @Index({ unique: true })
   @Column({ length: 32 })
   employeeNo!: string;
 

@@ -1,5 +1,5 @@
-import { IsapiClient } from './isapi/isapi-client';
 import { IsapiUserInfo } from './isapi/types';
+import { DevicePool } from './device-pool';
 import { logger } from './logger';
 
 export type CommandAction =
@@ -15,6 +15,7 @@ export type CommandAction =
 
 export interface CommandEnvelope {
   id: string;
+  deviceId: string;
   action: CommandAction;
   payload: any;
 }
@@ -27,37 +28,22 @@ export interface CommandResult {
 }
 
 export class CommandHandler {
-  private client: IsapiClient | null;
-
-  constructor(client: IsapiClient | null) {
-    this.client = client;
-  }
-
-  setClient(client: IsapiClient): void {
-    this.client = client;
-  }
-
-  private requireClient(): IsapiClient {
-    if (!this.client) {
-      throw new Error('aparat ma\'lumotlari hali olinmagan (server welcome kutilyapti)');
-    }
-    return this.client;
-  }
+  constructor(private readonly pool: DevicePool) {}
 
   async execute(cmd: CommandEnvelope): Promise<CommandResult> {
-    logger.debug(`exec ${cmd.action}`, cmd.payload);
+    logger.debug(`exec ${cmd.action} on ${cmd.deviceId}`);
     try {
       const data = await this.dispatch(cmd);
       return { id: cmd.id, success: true, data };
     } catch (e) {
       const error = (e as Error).message;
-      logger.error(`cmd ${cmd.action} (${cmd.id}) failed:`, error);
+      logger.error(`cmd ${cmd.action} (${cmd.id}) on ${cmd.deviceId} failed:`, error);
       return { id: cmd.id, success: false, error };
     }
   }
 
   private async dispatch(cmd: CommandEnvelope): Promise<any> {
-    const c = this.requireClient();
+    const c = this.pool.clientFor(cmd.deviceId);
     switch (cmd.action) {
       case 'ping':
         return { ok: await c.ping() };
@@ -94,25 +80,22 @@ export class CommandHandler {
         return { ok: true };
 
       case 'syncPerson':
-        return this.syncPerson(cmd.payload);
+        return this.syncPerson(cmd.deviceId, cmd.payload);
 
       default:
         throw new Error(`unknown action: ${(cmd as any).action}`);
     }
   }
 
-  // Yuqori darajali helper: bitta person'ni to'liq sinxronlaydi.
-  // Server tomonidan toIsapiUser dan kelgan userInfo + ixtiyoriy face base64.
-  private async syncPerson(payload: {
-    userInfo: IsapiUserInfo;
-    imageBase64?: string;
-    cardNo?: string;
-  }): Promise<{
-    user: 'added' | 'updated';
-    face: boolean;
-    card: boolean;
-  }> {
-    const c = this.requireClient();
+  private async syncPerson(
+    deviceId: string,
+    payload: {
+      userInfo: IsapiUserInfo;
+      imageBase64?: string;
+      cardNo?: string;
+    },
+  ): Promise<{ user: 'added' | 'updated'; face: boolean; card: boolean }> {
+    const c = this.pool.clientFor(deviceId);
     const exists = await c.searchUsers({
       employeeNo: payload.userInfo.employeeNo,
       maxResults: 1,

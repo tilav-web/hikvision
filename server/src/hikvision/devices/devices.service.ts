@@ -7,7 +7,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as crypto from 'node:crypto';
 import { DeviceEntity } from '../entities/device.entity';
 import { IsapiClient } from '../isapi/isapi.client';
 import { decryptSecret, encryptSecret } from '../../common/crypto.util';
@@ -157,16 +156,6 @@ export class DevicesService {
   async syncTime(id: string): Promise<void> {
     const client = await this.getClient(id);
     await client.setTimeNow();
-  }
-
-  async rotateAgentToken(id: string): Promise<{ deviceId: string; agentToken: string }> {
-    const device = await this.findOne(id);
-    const token = crypto.randomBytes(32).toString('base64url');
-    device.agentToken = token;
-    device.agentOnline = false;
-    device.agentLastSeenAt = null;
-    await this.repo.save(device);
-    return { deviceId: device.id, agentToken: token };
   }
 
   /** Aparat onlayn ekanini event keldi deb yangilash. */
