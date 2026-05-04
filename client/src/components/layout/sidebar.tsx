@@ -9,6 +9,7 @@ import {
   Activity,
   ScanFace,
   Coins,
+  CalendarCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -28,6 +29,7 @@ const items: NavItem[] = [
   { to: '/devices', icon: ScanFace, label: 'Qurilmalar' },
   { to: '/persons', icon: IdCard, label: 'Hodimlar' },
   { to: '/schedules', icon: CalendarClock, label: 'Jadval' },
+  { to: '/attendance', icon: CalendarCheck, label: 'Davomat' },
   { to: '/events', icon: Activity, label: 'Hodisalar' },
   { to: '/payroll', icon: Coins, label: 'Mukofot/Jarima' },
 ];

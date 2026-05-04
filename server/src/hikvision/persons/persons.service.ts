@@ -88,6 +88,9 @@ export class PersonsService {
       phone: dto.phone ?? null,
       email: dto.email ?? null,
       externalUserId: dto.externalUserId ?? null,
+      scheduleId: dto.scheduleId ?? null,
+      position: dto.position ?? null,
+      baseSalary: dto.baseSalary ?? null,
     });
     const saved = await this.personRepo.save(person);
 
@@ -170,6 +173,9 @@ export class PersonsService {
       phone: dto.phone ?? p.phone,
       email: dto.email ?? p.email,
       externalUserId: dto.externalUserId ?? p.externalUserId,
+      scheduleId: dto.scheduleId ?? p.scheduleId,
+      position: dto.position ?? p.position,
+      baseSalary: dto.baseSalary ?? p.baseSalary,
     });
     const saved = await this.personRepo.save(p);
 

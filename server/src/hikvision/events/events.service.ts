@@ -10,6 +10,7 @@ import { parseAcsEventPayload } from '../isapi/isapi.parser';
 import { EventsGateway } from './events.gateway';
 import { DevicesService } from '../devices/devices.service';
 import { AuthUser } from '../../auth/current-user.decorator';
+import { AttendanceService } from '../attendance/attendance.service';
 
 const EVENT_PIC_DIR = path.join(process.cwd(), 'uploads', 'events');
 
@@ -26,6 +27,7 @@ export class EventsService {
     private readonly deviceRepo: Repository<DeviceEntity>,
     private readonly devicesService: DevicesService,
     private readonly gateway: EventsGateway,
+    private readonly attendance: AttendanceService,
   ) {}
 
   /**
@@ -125,6 +127,12 @@ export class EventsService {
     );
 
     this.gateway.emitAccessEvent(saved, { deviceName: device.name });
+
+    // Davomatga ta'sir qiladigan event bo'lsa, attendance'ni yangilash
+    this.attendance.ingestEvent(saved).catch((e) =>
+      this.logger.warn(`attendance ingest failed: ${(e as Error).message}`),
+    );
+
     return saved;
   }
 

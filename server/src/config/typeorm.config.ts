@@ -5,6 +5,9 @@ import { PersonEntity } from '../hikvision/entities/person.entity';
 import { PersonDeviceEntity } from '../hikvision/entities/person-device.entity';
 import { AccessEventEntity } from '../hikvision/entities/access-event.entity';
 import { AgentEntity } from '../hikvision/entities/agent.entity';
+import { ScheduleEntity } from '../hikvision/entities/schedule.entity';
+import { AttendanceEntity } from '../hikvision/entities/attendance.entity';
+import { PenaltyEntity } from '../hikvision/entities/penalty.entity';
 import { CompanyEntity } from '../companies/company.entity';
 import { UserEntity } from '../users/user.entity';
 
@@ -16,6 +19,9 @@ export const allEntities = [
   PersonEntity,
   PersonDeviceEntity,
   AccessEventEntity,
+  ScheduleEntity,
+  AttendanceEntity,
+  PenaltyEntity,
 ];
 
 export const typeOrmAsyncConfig: TypeOrmModuleAsyncOptions = {

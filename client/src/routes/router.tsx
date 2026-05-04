@@ -8,7 +8,10 @@ import { UsersPage } from '@/pages/users-page';
 import { AgentsPage } from '@/pages/agents-page';
 import { DevicesPage } from '@/pages/devices-page';
 import { PersonsPage } from '@/pages/persons-page';
-import { PlaceholderPage } from '@/pages/placeholder-page';
+import { SchedulesPage } from '@/pages/schedules-page';
+import { EventsPage } from '@/pages/events-page';
+import { AttendancePage } from '@/pages/attendance-page';
+import { PayrollPage } from '@/pages/payroll-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 
 export const router = createBrowserRouter([
@@ -28,33 +31,10 @@ export const router = createBrowserRouter([
           { path: '/agents', element: <AgentsPage /> },
           { path: '/devices', element: <DevicesPage /> },
           { path: '/persons', element: <PersonsPage /> },
-          {
-            path: '/schedules',
-            element: (
-              <PlaceholderPage
-                title="Ish jadvali"
-                description="Ish vaqti, kechikish chegarasi"
-              />
-            ),
-          },
-          {
-            path: '/events',
-            element: (
-              <PlaceholderPage
-                title="Hodisalar"
-                description="Real vaqtda kirish/chiqish"
-              />
-            ),
-          },
-          {
-            path: '/payroll',
-            element: (
-              <PlaceholderPage
-                title="Mukofot va Jarima"
-                description="Avtomatik va qo'lda hisob"
-              />
-            ),
-          },
+          { path: '/schedules', element: <SchedulesPage /> },
+          { path: '/attendance', element: <AttendancePage /> },
+          { path: '/events', element: <EventsPage /> },
+          { path: '/payroll', element: <PayrollPage /> },
         ],
       },
     ],

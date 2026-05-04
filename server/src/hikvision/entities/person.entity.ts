@@ -76,6 +76,16 @@ export class PersonEntity {
   @Column({ default: true })
   isActive!: boolean;
 
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  scheduleId!: string | null;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, nullable: true })
+  baseSalary!: string | null;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  position!: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 

@@ -100,6 +100,22 @@ export class CreatePersonDto {
   @IsString()
   externalUserId?: string;
 
+  @ApiPropertyOptional({ description: 'Ish jadvali (Schedule) ID' })
+  @IsOptional()
+  @IsUUID()
+  scheduleId?: string;
+
+  @ApiPropertyOptional({ example: 'Buxgalter' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  position?: string;
+
+  @ApiPropertyOptional({ example: '5000000.00', description: 'Baza maosh (so\'m)' })
+  @IsOptional()
+  @IsString()
+  baseSalary?: string;
+
   @ApiPropertyOptional({
     type: [String],
     description:
