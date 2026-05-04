@@ -7,6 +7,8 @@ import { PersonEntity } from '../entities/person.entity';
 import { ScheduleEntity } from '../entities/schedule.entity';
 import { PenaltyEntity } from '../entities/penalty.entity';
 import { AuthUser } from '../../auth/current-user.decorator';
+import { HolidaysService } from '../holidays/holidays.service';
+import { VacationsService } from '../vacations/vacations.service';
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0');
@@ -48,6 +50,8 @@ export class AttendanceService {
     private readonly scheduleRepo: Repository<ScheduleEntity>,
     @InjectRepository(PenaltyEntity)
     private readonly penaltyRepo: Repository<PenaltyEntity>,
+    private readonly holidays: HolidaysService,
+    private readonly vacations: VacationsService,
   ) {}
 
   async list(opts: {
@@ -95,6 +99,9 @@ export class AttendanceService {
     const date = dateString(captured);
     const dayStart = new Date(date + 'T00:00:00');
     const dayEnd = new Date(date + 'T23:59:59.999');
+
+    const isHoliday = await this.holidays.isHoliday(event.companyId, date);
+    const isOnLeave = await this.vacations.isOnLeave(person.id, date);
 
     // Shu kunning barcha grant bo'lgan eventlari (vaqt bo'yicha)
     const allEvents = await this.eventRepo.find({
@@ -171,13 +178,23 @@ export class AttendanceService {
       row.workedMinutes = 0;
     }
 
-    row.status = this.computeStatus(row);
+    row.status = this.computeStatus(row, { isHoliday, isOnLeave });
     const saved = await this.repo.save(row);
 
-    if (sched) await this.upsertAutoPenalty(saved, sched);
+    // Bayram yoki ta'tilda bo'lsa avtomatik jarima yozilmaydi
+    if (sched && !isHoliday && !isOnLeave) {
+      await this.upsertAutoPenalty(saved, sched);
+    } else {
+      await this.penaltyRepo.delete({ attendanceId: saved.id });
+    }
   }
 
-  private computeStatus(row: AttendanceEntity): AttendanceEntity['status'] {
+  private computeStatus(
+    row: AttendanceEntity,
+    flags: { isHoliday: boolean; isOnLeave: boolean },
+  ): AttendanceEntity['status'] {
+    if (flags.isHoliday) return 'holiday';
+    if (flags.isOnLeave) return 'leave';
     if (!row.firstInAt) return 'absent';
     if (row.lateMinutes > 0) return 'late';
     if (!row.lastOutAt) return 'partial';

@@ -10,6 +10,8 @@ import {
   ScanFace,
   Coins,
   CalendarCheck,
+  PartyPopper,
+  Plane,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -34,6 +36,8 @@ const items: NavItem[] = [
   { to: '/events', icon: Activity, label: 'Hodisalar' },
   // Faqat company admin: kampaniya ichki ish jarayonlari
   { to: '/schedules', icon: CalendarClock, label: 'Jadval', roles: ['company_admin'] },
+  { to: '/holidays', icon: PartyPopper, label: 'Bayramlar', roles: ['company_admin'] },
+  { to: '/vacations', icon: Plane, label: "Ta'til", roles: ['company_admin'] },
   { to: '/payroll', icon: Coins, label: 'Mukofot/Jarima', roles: ['company_admin'] },
 ];
 

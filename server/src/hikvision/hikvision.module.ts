@@ -8,6 +8,8 @@ import { AgentEntity } from './entities/agent.entity';
 import { ScheduleEntity } from './entities/schedule.entity';
 import { AttendanceEntity } from './entities/attendance.entity';
 import { PenaltyEntity } from './entities/penalty.entity';
+import { HolidayEntity } from './entities/holiday.entity';
+import { VacationEntity } from './entities/vacation.entity';
 import { DevicesService } from './devices/devices.service';
 import { DevicesController } from './devices/devices.controller';
 import { PersonsService } from './persons/persons.service';
@@ -24,6 +26,10 @@ import { AttendanceService } from './attendance/attendance.service';
 import { AttendanceController } from './attendance/attendance.controller';
 import { PenaltiesService } from './penalties/penalties.service';
 import { PenaltiesController } from './penalties/penalties.controller';
+import { HolidaysService } from './holidays/holidays.service';
+import { HolidaysController } from './holidays/holidays.controller';
+import { VacationsService } from './vacations/vacations.service';
+import { VacationsController } from './vacations/vacations.controller';
 import { CompaniesModule } from '../companies/companies.module';
 
 @Module({
@@ -38,6 +44,8 @@ import { CompaniesModule } from '../companies/companies.module';
       ScheduleEntity,
       AttendanceEntity,
       PenaltyEntity,
+      HolidayEntity,
+      VacationEntity,
     ]),
   ],
   controllers: [
@@ -48,6 +56,8 @@ import { CompaniesModule } from '../companies/companies.module';
     SchedulesController,
     AttendanceController,
     PenaltiesController,
+    HolidaysController,
+    VacationsController,
   ],
   providers: [
     DevicesService,
@@ -59,6 +69,8 @@ import { CompaniesModule } from '../companies/companies.module';
     SchedulesService,
     AttendanceService,
     PenaltiesService,
+    HolidaysService,
+    VacationsService,
   ],
   exports: [
     DevicesService,
@@ -69,6 +81,8 @@ import { CompaniesModule } from '../companies/companies.module';
     SchedulesService,
     AttendanceService,
     PenaltiesService,
+    HolidaysService,
+    VacationsService,
   ],
 })
 export class HikvisionModule {}

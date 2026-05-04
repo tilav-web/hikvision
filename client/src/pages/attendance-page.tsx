@@ -43,6 +43,7 @@ const STATUS_BADGE: Record<AttendanceStatus, { variant: any; label: string }> = 
   absent: { variant: 'destructive', label: 'Kelmadi' },
   partial: { variant: 'outline', label: 'Yarim kun' },
   leave: { variant: 'secondary', label: "Ta'til" },
+  holiday: { variant: 'default', label: 'Bayram' },
 };
 
 export function AttendancePage() {

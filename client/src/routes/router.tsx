@@ -13,6 +13,8 @@ import { EventsPage } from '@/pages/events-page';
 import { AttendancePage } from '@/pages/attendance-page';
 import { PayrollPage } from '@/pages/payroll-page';
 import { ProfilePage } from '@/pages/profile-page';
+import { HolidaysPage } from '@/pages/holidays-page';
+import { VacationsPage } from '@/pages/vacations-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 
 export const router = createBrowserRouter([
@@ -44,6 +46,8 @@ export const router = createBrowserRouter([
             element: <ProtectedRoute roles={['company_admin']} />,
             children: [
               { path: '/schedules', element: <SchedulesPage /> },
+              { path: '/holidays', element: <HolidaysPage /> },
+              { path: '/vacations', element: <VacationsPage /> },
               { path: '/payroll', element: <PayrollPage /> },
             ],
           },

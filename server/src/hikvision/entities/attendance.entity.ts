@@ -12,7 +12,13 @@ import { CompanyEntity } from '../../companies/company.entity';
 import { PersonEntity } from './person.entity';
 import { ScheduleEntity } from './schedule.entity';
 
-export type AttendanceStatus = 'present' | 'late' | 'absent' | 'leave' | 'partial';
+export type AttendanceStatus =
+  | 'present'
+  | 'late'
+  | 'absent'
+  | 'leave'
+  | 'partial'
+  | 'holiday';
 
 /**
  * Kunlik agregat: hodim qachon kirgan/chiqqan, kechikkanmi.

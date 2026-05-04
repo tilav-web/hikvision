@@ -8,6 +8,8 @@ import { AgentEntity } from '../hikvision/entities/agent.entity';
 import { ScheduleEntity } from '../hikvision/entities/schedule.entity';
 import { AttendanceEntity } from '../hikvision/entities/attendance.entity';
 import { PenaltyEntity } from '../hikvision/entities/penalty.entity';
+import { HolidayEntity } from '../hikvision/entities/holiday.entity';
+import { VacationEntity } from '../hikvision/entities/vacation.entity';
 import { CompanyEntity } from '../companies/company.entity';
 import { UserEntity } from '../users/user.entity';
 
@@ -22,6 +24,8 @@ export const allEntities = [
   ScheduleEntity,
   AttendanceEntity,
   PenaltyEntity,
+  HolidayEntity,
+  VacationEntity,
 ];
 
 export const typeOrmAsyncConfig: TypeOrmModuleAsyncOptions = {

@@ -119,7 +119,13 @@ export interface Schedule {
   updatedAt: string;
 }
 
-export type AttendanceStatus = 'present' | 'late' | 'absent' | 'leave' | 'partial';
+export type AttendanceStatus =
+  | 'present'
+  | 'late'
+  | 'absent'
+  | 'leave'
+  | 'partial'
+  | 'holiday';
 
 export interface Attendance {
   id: string;
@@ -179,4 +185,35 @@ export interface AttendanceStats {
   absent: number;
   partial: number;
   totalLateMinutes: number;
+  totalLunchOverstay?: number;
+}
+
+export interface Holiday {
+  id: string;
+  companyId: string;
+  date: string;
+  name: string;
+  createdAt: string;
+}
+
+export type VacationType =
+  | 'vacation'
+  | 'sick'
+  | 'unpaid'
+  | 'business_trip'
+  | 'other';
+
+export type VacationStatus = 'pending' | 'approved' | 'rejected';
+
+export interface Vacation {
+  id: string;
+  companyId: string;
+  personId: string;
+  fromDate: string;
+  toDate: string;
+  type: VacationType;
+  status: VacationStatus;
+  reason: string | null;
+  createdAt: string;
+  person?: Person;
 }
