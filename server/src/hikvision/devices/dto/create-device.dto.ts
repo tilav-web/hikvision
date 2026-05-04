@@ -1,11 +1,43 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
+import { DeviceMode } from '../../entities/device.entity';
 
 export class CreateDeviceDto {
   @ApiProperty({ example: 'Asosiy kirish' })
   @IsString()
   @Length(1, 120)
   name!: string;
+
+  @ApiPropertyOptional({
+    description: 'Kampaniya ID. super_admin uchun shart, company_admin avtomatik o\'z kampaniyasiga bog\'lanadi.',
+  })
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
+
+  @ApiPropertyOptional({ description: 'Qaysi agentga biriktirilgan bo\'lsa shu agent boshqaradi' })
+  @IsOptional()
+  @IsUUID()
+  agentId?: string;
+
+  @ApiPropertyOptional({
+    enum: ['entry', 'exit', 'both'],
+    default: 'both',
+    description: 'entry — kirish uchun, exit — chiqish uchun, both — qurilmada kirish/chiqish tugmasi chiqadi',
+  })
+  @IsOptional()
+  @IsIn(['entry', 'exit', 'both'])
+  mode?: DeviceMode;
 
   @ApiProperty({ example: '192.168.1.64' })
   @IsString()

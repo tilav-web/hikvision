@@ -11,9 +11,17 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
-import { ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExcludeEndpoint,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { EventsService } from './events.service';
+import { Public } from '../../auth/public.decorator';
+import { Roles } from '../../auth/roles.decorator';
+import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 
 @ApiTags('Hikvision · Events')
 @Controller('hikvision/events')
@@ -30,6 +38,7 @@ export class EventsController {
    *      Keyingi part(lar): rasm (image/jpeg)
    *   2) Content-Type: application/json — to'g'ridan-to'g'ri JSON
    */
+  @Public()
   @Post('receiver')
   @HttpCode(200)
   @ApiExcludeEndpoint()
@@ -90,18 +99,24 @@ export class EventsController {
   }
 
   @Get()
+  @Roles('super_admin', 'company_admin')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Kirish-chiqish loglarini ko\'rish' })
   list(
+    @CurrentUser() current: AuthUser,
     @Query('deviceId') deviceId?: string,
     @Query('personId') personId?: string,
+    @Query('companyId') companyId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('skip') skip?: string,
     @Query('take') take?: string,
   ) {
     return this.service.list({
+      current,
       deviceId,
       personId,
+      companyId,
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
       skip: skip ? Number.parseInt(skip, 10) : undefined,

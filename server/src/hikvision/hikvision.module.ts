@@ -13,6 +13,8 @@ import { EventsService } from './events/events.service';
 import { EventsController } from './events/events.controller';
 import { EventsGateway } from './events/events.gateway';
 import { AgentsGateway } from './agents/agents.gateway';
+import { AgentsService } from './agents/agents.service';
+import { AgentsController } from './agents/agents.controller';
 
 @Module({
   imports: [
@@ -24,14 +26,26 @@ import { AgentsGateway } from './agents/agents.gateway';
       AccessEventEntity,
     ]),
   ],
-  controllers: [DevicesController, PersonsController, EventsController],
+  controllers: [
+    DevicesController,
+    PersonsController,
+    EventsController,
+    AgentsController,
+  ],
   providers: [
     DevicesService,
     PersonsService,
     EventsService,
     EventsGateway,
     AgentsGateway,
+    AgentsService,
   ],
-  exports: [DevicesService, PersonsService, EventsService, AgentsGateway],
+  exports: [
+    DevicesService,
+    PersonsService,
+    EventsService,
+    AgentsGateway,
+    AgentsService,
+  ],
 })
 export class HikvisionModule {}

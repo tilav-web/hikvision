@@ -3,6 +3,11 @@ import { AppShell } from '@/components/layout/app-shell';
 import { ProtectedRoute } from '@/components/protected-route';
 import { LoginPage } from '@/pages/login-page';
 import { DashboardPage } from '@/pages/dashboard-page';
+import { CompaniesPage } from '@/pages/companies-page';
+import { UsersPage } from '@/pages/users-page';
+import { AgentsPage } from '@/pages/agents-page';
+import { DevicesPage } from '@/pages/devices-page';
+import { PersonsPage } from '@/pages/persons-page';
 import { PlaceholderPage } from '@/pages/placeholder-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 
@@ -17,54 +22,12 @@ export const router = createBrowserRouter([
           { path: '/', element: <DashboardPage /> },
           {
             element: <ProtectedRoute roles={['super_admin']} />,
-            children: [
-              {
-                path: '/companies',
-                element: (
-                  <PlaceholderPage
-                    title="Kampaniyalar"
-                    description="SaaS mijozlari, to'lov holati, qurilmalar"
-                  />
-                ),
-              },
-            ],
+            children: [{ path: '/companies', element: <CompaniesPage /> }],
           },
-          {
-            path: '/users',
-            element: (
-              <PlaceholderPage
-                title="Foydalanuvchilar"
-                description="Admin va kampaniya egalari"
-              />
-            ),
-          },
-          {
-            path: '/agents',
-            element: (
-              <PlaceholderPage
-                title="Agentlar"
-                description="Mahalliy bridge agentlari (Windows/RPI)"
-              />
-            ),
-          },
-          {
-            path: '/devices',
-            element: (
-              <PlaceholderPage
-                title="Qurilmalar"
-                description="Hikvision FaceID terminallari"
-              />
-            ),
-          },
-          {
-            path: '/persons',
-            element: (
-              <PlaceholderPage
-                title="Hodimlar"
-                description="Yuz, karta, PIN — kirish ruxsatlari"
-              />
-            ),
-          },
+          { path: '/users', element: <UsersPage /> },
+          { path: '/agents', element: <AgentsPage /> },
+          { path: '/devices', element: <DevicesPage /> },
+          { path: '/persons', element: <PersonsPage /> },
           {
             path: '/schedules',
             element: (

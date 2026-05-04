@@ -7,76 +7,116 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DevicesService } from './devices.service';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
+import { Roles } from '../../auth/roles.decorator';
+import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 
 @ApiTags('Hikvision · Devices')
+@ApiBearerAuth()
 @Controller('hikvision/devices')
 export class DevicesController {
   constructor(private readonly service: DevicesService) {}
 
   @Post()
+  @Roles('super_admin', 'company_admin')
   @ApiOperation({ summary: 'Yangi aparat qo\'shish' })
-  create(@Body() dto: CreateDeviceDto) {
-    return this.service.create(dto);
+  create(@CurrentUser() current: AuthUser, @Body() dto: CreateDeviceDto) {
+    return this.service.create(current, dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Barcha aparatlar ro\'yxati' })
-  findAll() {
-    return this.service.findAll();
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({ summary: 'Aparatlar ro\'yxati' })
+  findAll(
+    @CurrentUser() current: AuthUser,
+    @Query('companyId') companyId?: string,
+    @Query('agentId') agentId?: string,
+  ) {
+    return this.service.findAll(current, { companyId, agentId });
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Bitta aparat ma\'lumoti' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
+  @Roles('super_admin', 'company_admin')
+  findOne(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.findOne(current, id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Aparat ma\'lumotini yangilash' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDeviceDto) {
-    return this.service.update(id, dto);
+  @Roles('super_admin', 'company_admin')
+  update(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateDeviceDto,
+  ) {
+    return this.service.update(current, id, dto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Aparatni o\'chirish' })
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.remove(id);
+  @Roles('super_admin', 'company_admin')
+  remove(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.remove(current, id);
   }
 
   @Post(':id/test')
+  @Roles('super_admin', 'company_admin')
   @ApiOperation({ summary: 'Aparatga ulanishni tekshirish (deviceInfo)' })
-  testConnection(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.testConnection(id);
+  testConnection(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.testConnection(current, id);
   }
 
   @Post(':id/setup-listener')
+  @Roles('super_admin', 'company_admin')
   @ApiOperation({
     summary: 'Aparatga event listener URL sozlash (PUBLIC_BASE_URL ishlatadi)',
   })
-  setupListener(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.setupListener(id);
+  setupListener(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.setupListener(current, id);
   }
 
   @Post(':id/open-door')
+  @Roles('super_admin', 'company_admin')
   @ApiOperation({ summary: 'Eshikni masofadan ochish' })
-  openDoor(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.openDoor(id).then(() => ({ ok: true }));
+  openDoor(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.openDoor(current, id).then(() => ({ ok: true }));
   }
 
   @Post(':id/reboot')
+  @Roles('super_admin', 'company_admin')
   @ApiOperation({ summary: 'Aparatni qayta yuklash' })
-  reboot(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.reboot(id).then(() => ({ ok: true }));
+  reboot(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.reboot(current, id).then(() => ({ ok: true }));
   }
 
   @Post(':id/sync-time')
+  @Roles('super_admin', 'company_admin')
   @ApiOperation({ summary: 'Aparat vaqtini server vaqtiga moslash' })
-  syncTime(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.syncTime(id).then(() => ({ ok: true }));
+  syncTime(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.syncTime(current, id).then(() => ({ ok: true }));
   }
 }

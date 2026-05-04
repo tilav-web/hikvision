@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -17,6 +19,7 @@ import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { IsapiUserInfo } from '../isapi/isapi.types';
 import { AgentsGateway } from '../agents/agents.gateway';
+import { AuthUser } from '../../auth/current-user.decorator';
 
 const FACE_DIR = path.join(process.cwd(), 'uploads', 'faces');
 
@@ -37,32 +40,43 @@ export class PersonsService {
 
   // ───────── CRUD ─────────
 
-  /**
-   * Bir so'rovda: user yaratish + (ixtiyoriy) yuz rasmi + (ixtiyoriy) aparatlarga sinxron.
-   */
   async createWithFace(
+    current: AuthUser,
     dto: CreatePersonDto,
     fileBuffer?: Buffer,
   ): Promise<{
     person: PersonEntity;
     sync?: { success: string[]; failed: Array<{ deviceId: string; error: string }> };
   }> {
-    const created = await this.create(dto);
+    const created = await this.create(current, dto);
     if (fileBuffer && fileBuffer.length) {
-      await this.setFaceImage(created.id, fileBuffer);
+      await this.setFaceImage(current, created.id, fileBuffer);
     }
     if (dto.autoSync) {
-      const sync = await this.syncToDevices(created.id);
-      return { person: await this.findOne(created.id), sync };
+      const sync = await this.syncToDevices(current, created.id);
+      return { person: await this.findOne(current, created.id), sync };
     }
-    return { person: await this.findOne(created.id) };
+    return { person: await this.findOne(current, created.id) };
   }
 
-  async create(dto: CreatePersonDto): Promise<PersonEntity> {
-    const exists = await this.personRepo.findOne({ where: { employeeNo: dto.employeeNo } });
-    if (exists) throw new ConflictException(`employeeNo ${dto.employeeNo} band`);
+  async create(current: AuthUser, dto: CreatePersonDto): Promise<PersonEntity> {
+    const companyId =
+      current.role === 'company_admin' ? current.companyId : dto.companyId;
+    if (!companyId) {
+      throw new BadRequestException('companyId shart');
+    }
+
+    const exists = await this.personRepo.findOne({
+      where: { companyId, employeeNo: dto.employeeNo },
+    });
+    if (exists) {
+      throw new ConflictException(
+        `employeeNo ${dto.employeeNo} ushbu kampaniyada band`,
+      );
+    }
 
     const person = this.personRepo.create({
+      companyId,
       employeeNo: dto.employeeNo,
       name: dto.name,
       userType: dto.userType ?? 'normal',
@@ -70,15 +84,14 @@ export class PersonsService {
       beginTime: dto.beginTime ? new Date(dto.beginTime) : null,
       endTime: dto.endTime ? new Date(dto.endTime) : null,
       cardNo: dto.cardNo ?? null,
-      pinHash: dto.pin ?? null, // hozircha to'g'ridan-to'g'ri (aparatga yuboriladi). Production: hash + reversible vault
+      pinHash: dto.pin ?? null,
       phone: dto.phone ?? null,
       email: dto.email ?? null,
       externalUserId: dto.externalUserId ?? null,
     });
     const saved = await this.personRepo.save(person);
 
-    // Aparatga sinxronlash uchun link yaratamiz
-    const targetDevices = await this.resolveTargetDevices(dto.deviceIds);
+    const targetDevices = await this.resolveTargetDevices(companyId, dto.deviceIds);
     if (targetDevices.length) {
       await this.linkRepo.save(
         targetDevices.map((d) =>
@@ -93,39 +106,59 @@ export class PersonsService {
     return saved;
   }
 
-  async findAll(opts: { skip?: number; take?: number; q?: string } = {}): Promise<{
-    items: PersonEntity[];
-    total: number;
-  }> {
+  async findAll(
+    current: AuthUser,
+    opts: {
+      skip?: number;
+      take?: number;
+      q?: string;
+      companyId?: string;
+    } = {},
+  ): Promise<{ items: PersonEntity[]; total: number }> {
     const qb = this.personRepo
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.deviceLinks', 'dl')
       .orderBy('p.createdAt', 'DESC');
+
+    const companyFilter = this.resolveCompanyFilter(current, opts.companyId);
+    if (companyFilter) {
+      qb.andWhere('p.companyId = :cid', { cid: companyFilter });
+    }
     if (opts.q) {
-      qb.where('p.name ILIKE :q OR p.employeeNo ILIKE :q OR p.phone ILIKE :q', {
-        q: `%${opts.q}%`,
-      });
+      qb.andWhere(
+        '(p.name ILIKE :q OR p.employeeNo ILIKE :q OR p.phone ILIKE :q)',
+        { q: `%${opts.q}%` },
+      );
     }
     qb.skip(opts.skip ?? 0).take(opts.take ?? 50);
     const [items, total] = await qb.getManyAndCount();
     return { items, total };
   }
 
-  async findOne(id: string): Promise<PersonEntity> {
+  async findOne(current: AuthUser, id: string): Promise<PersonEntity> {
     const p = await this.personRepo.findOne({
       where: { id },
       relations: { deviceLinks: { device: true } },
     });
     if (!p) throw new NotFoundException(`Person ${id} topilmadi`);
+    this.assertAccess(current, p.companyId);
     return p;
   }
 
-  async findByEmployeeNo(employeeNo: string): Promise<PersonEntity | null> {
-    return this.personRepo.findOne({ where: { employeeNo } });
+  /** Internal — no access check */
+  async findByEmployeeNoAndCompany(
+    companyId: string,
+    employeeNo: string,
+  ): Promise<PersonEntity | null> {
+    return this.personRepo.findOne({ where: { companyId, employeeNo } });
   }
 
-  async update(id: string, dto: UpdatePersonDto): Promise<PersonEntity> {
-    const p = await this.findOne(id);
+  async update(
+    current: AuthUser,
+    id: string,
+    dto: UpdatePersonDto,
+  ): Promise<PersonEntity> {
+    const p = await this.findOne(current, id);
     Object.assign(p, {
       name: dto.name ?? p.name,
       userType: dto.userType ?? p.userType,
@@ -140,12 +173,10 @@ export class PersonsService {
     });
     const saved = await this.personRepo.save(p);
 
-    // Sinxronni eski "synced" → "pending" qilamiz, chunki ma'lumot o'zgardi
     await this.linkRepo.update({ personId: id }, { status: 'pending' });
 
-    // Yangi aparatlar berilgan bo'lsa, link qo'shamiz
     if (dto.deviceIds?.length) {
-      const devices = await this.resolveTargetDevices(dto.deviceIds);
+      const devices = await this.resolveTargetDevices(p.companyId!, dto.deviceIds);
       const existing = await this.linkRepo.find({ where: { personId: id } });
       const existingSet = new Set(existing.map((l) => l.deviceId));
       const toAdd = devices.filter((d) => !existingSet.has(d.id));
@@ -160,9 +191,11 @@ export class PersonsService {
     return saved;
   }
 
-  /** Userni serverdan va barcha aparatlardan o'chirish. */
-  async remove(id: string): Promise<{ removedFrom: string[]; failures: string[] }> {
-    const p = await this.findOne(id);
+  async remove(
+    current: AuthUser,
+    id: string,
+  ): Promise<{ removedFrom: string[]; failures: string[] }> {
+    const p = await this.findOne(current, id);
     const removedFrom: string[] = [];
     const failures: string[] = [];
 
@@ -186,12 +219,12 @@ export class PersonsService {
 
   // ───────── Yuz rasmini saqlash + siqish ─────────
 
-  /**
-   * JPEG buffer kiradi → Jimp bilan 480px gacha kichraytirib, sifatni 80% qilamiz.
-   * Aparat ≤200KB kutadi, aksariyat hollarda shu yetarli.
-   */
-  async setFaceImage(id: string, fileBuffer: Buffer): Promise<PersonEntity> {
-    const p = await this.findOne(id);
+  async setFaceImage(
+    current: AuthUser,
+    id: string,
+    fileBuffer: Buffer,
+  ): Promise<PersonEntity> {
+    const p = await this.findOne(current, id);
     await fs.mkdir(FACE_DIR, { recursive: true });
 
     const img = await Jimp.read(fileBuffer);
@@ -207,25 +240,26 @@ export class PersonsService {
     p.faceImagePath = dest;
     await this.personRepo.save(p);
 
-    // Yuz o'zgardi → sinxron qayta kerak
     await this.linkRepo.update({ personId: id }, { status: 'pending', faceSynced: false });
     return p;
   }
 
-  async getFaceBuffer(id: string): Promise<Buffer | null> {
-    const p = await this.findOne(id);
+  async getFaceBuffer(current: AuthUser, id: string): Promise<Buffer | null> {
+    const p = await this.findOne(current, id);
     if (!p.faceImagePath) return null;
     return fs.readFile(p.faceImagePath).catch(() => null);
   }
 
   // ───────── Aparatlarga sinxronlash ─────────
 
-  /** Bitta personni o'ziga biriktirilgan barcha aparatlarga yuborish. */
-  async syncToDevices(personId: string): Promise<{
+  async syncToDevices(
+    current: AuthUser,
+    personId: string,
+  ): Promise<{
     success: string[];
     failed: Array<{ deviceId: string; error: string }>;
   }> {
-    const p = await this.findOne(personId);
+    const p = await this.findOne(current, personId);
     const success: string[] = [];
     const failed: Array<{ deviceId: string; error: string }> = [];
 
@@ -325,22 +359,48 @@ export class PersonsService {
     if (result?.card) linkRecord.cardSynced = true;
   }
 
-  /** Aparatdan personni olib tashlash (faqat aparatdan, DB'da qoladi). */
-  async removeFromDevice(personId: string, deviceId: string): Promise<void> {
-    const p = await this.findOne(personId);
+  async removeFromDevice(
+    current: AuthUser,
+    personId: string,
+    deviceId: string,
+  ): Promise<void> {
+    const p = await this.findOne(current, personId);
     const client = await this.devicesService.getClient(deviceId);
     await client.deleteFace(p.employeeNo).catch(() => undefined);
     await client.deleteUser(p.employeeNo);
-    await this.linkRepo.delete({ personId, deviceId });
+    await this.linkRepo.delete({ personId: p.id, deviceId });
   }
 
   // ───────── ichki ─────────
 
-  private async resolveTargetDevices(ids?: string[]): Promise<DeviceEntity[]> {
-    if (ids && ids.length) {
-      return this.deviceRepo.findBy({ id: In(ids) });
+  private resolveCompanyFilter(
+    current: AuthUser,
+    requested?: string,
+  ): string | null {
+    if (current.role === 'company_admin') return current.companyId!;
+    return requested ?? null;
+  }
+
+  private assertAccess(current: AuthUser, companyId: string | null): void {
+    if (current.role === 'company_admin' && companyId !== current.companyId) {
+      throw new ForbiddenException('boshqa kampaniya hodimi');
     }
-    return this.deviceRepo.find();
+  }
+
+  private async resolveTargetDevices(
+    companyId: string,
+    ids?: string[],
+  ): Promise<DeviceEntity[]> {
+    if (ids && ids.length) {
+      const found = await this.deviceRepo.findBy({ id: In(ids), companyId });
+      if (found.length !== ids.length) {
+        throw new BadRequestException(
+          'ba\'zi qurilmalar topilmadi yoki sizning kampaniyangizga tegishli emas',
+        );
+      }
+      return found;
+    }
+    return this.deviceRepo.findBy({ companyId });
   }
 
   private toIsapiUser(p: PersonEntity): IsapiUserInfo {

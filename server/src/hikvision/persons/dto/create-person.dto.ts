@@ -34,7 +34,14 @@ const toArray = ({ value }: { value: any }): any => {
 };
 
 export class CreatePersonDto {
-  @ApiProperty({ example: '1001', description: 'Aparatdagi unikal user ID' })
+  @ApiPropertyOptional({
+    description: 'super_admin uchun shart, company_admin avtomatik o\'z kampaniyasiga bog\'lanadi',
+  })
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
+
+  @ApiProperty({ example: '1001', description: 'Aparatdagi unikal user ID (kampaniya ichida unikal)' })
   @IsString()
   @Length(1, 32)
   @Matches(/^[A-Za-z0-9_-]+$/, { message: 'employeeNo faqat alfanumeric, _ va -' })

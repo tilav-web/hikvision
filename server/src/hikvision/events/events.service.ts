@@ -9,6 +9,7 @@ import { DeviceEntity } from '../entities/device.entity';
 import { parseAcsEventPayload } from '../isapi/isapi.parser';
 import { EventsGateway } from './events.gateway';
 import { DevicesService } from '../devices/devices.service';
+import { AuthUser } from '../../auth/current-user.decorator';
 
 const EVENT_PIC_DIR = path.join(process.cwd(), 'uploads', 'events');
 
@@ -65,8 +66,10 @@ export class EventsService {
     await this.devicesService.markSeen(device.id);
 
     let person: PersonEntity | null = null;
-    if (parsed.employeeNo) {
-      person = await this.personRepo.findOne({ where: { employeeNo: parsed.employeeNo } });
+    if (parsed.employeeNo && device.companyId) {
+      person = await this.personRepo.findOne({
+        where: { employeeNo: parsed.employeeNo, companyId: device.companyId },
+      });
     }
 
     let pictureUrl: string | null = null;
@@ -74,7 +77,20 @@ export class EventsService {
       pictureUrl = await this.savePicture(opts.picture);
     }
 
+    // Qurilma rejimidan kelib chiqib, kirish/chiqish yo'nalishini aniqlaymiz.
+    // 'both' rejimida — yo'nalish hodim tugmadan keyin keladi (alohida event'da).
+    let direction: 'in' | 'out' | null = null;
+    let directionSource: 'device_mode' | 'button' | 'manual' | null = null;
+    if (device.mode === 'entry') {
+      direction = 'in';
+      directionSource = 'device_mode';
+    } else if (device.mode === 'exit') {
+      direction = 'out';
+      directionSource = 'device_mode';
+    }
+
     const event = this.eventRepo.create({
+      companyId: device.companyId,
       deviceId: device.id,
       personId: person?.id ?? null,
       employeeNo: parsed.employeeNo,
@@ -83,6 +99,8 @@ export class EventsService {
       majorEvent: parsed.majorEvent,
       minorEvent: parsed.minorEvent,
       verifyMode: parsed.verifyMode,
+      direction,
+      directionSource,
       capturedAt: parsed.capturedAt,
       pictureUrl,
       raw: parsed.raw,
@@ -111,14 +129,21 @@ export class EventsService {
   }
 
   async list(opts: {
+    current: AuthUser;
     deviceId?: string;
     personId?: string;
+    companyId?: string;
     from?: Date;
     to?: Date;
     skip?: number;
     take?: number;
-  } = {}) {
+  }) {
     const where: any = {};
+    if (opts.current.role === 'company_admin') {
+      where.companyId = opts.current.companyId;
+    } else if (opts.companyId) {
+      where.companyId = opts.companyId;
+    }
     if (opts.deviceId) where.deviceId = opts.deviceId;
     if (opts.personId) where.personId = opts.personId;
     if (opts.from && opts.to) where.capturedAt = Between(opts.from, opts.to);
