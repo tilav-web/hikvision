@@ -1,5 +1,5 @@
 {
-  "name": "hikvision-device-agent",
+  "name": "hikvision-agent",
   "version": "0.1.0",
   "description": "Bridge agent: cloud serverni eshitib, mahalliy Hikvision aparatini boshqaradi",
   "main": "dist/index.js",
