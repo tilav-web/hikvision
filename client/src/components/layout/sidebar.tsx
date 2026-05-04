@@ -23,15 +23,18 @@ interface NavItem {
 
 const items: NavItem[] = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  // Super admin (SaaS) tomoni
   { to: '/companies', icon: Building2, label: 'Kampaniyalar', roles: ['super_admin'] },
-  { to: '/users', icon: Users, label: 'Foydalanuvchilar' },
+  { to: '/users', icon: Users, label: 'Foydalanuvchilar', roles: ['super_admin'] },
+  // Operatsion (kampaniya ichki) — har ikkala rolga ko'rinadi, lekin scope farq qiladi
   { to: '/agents', icon: Cpu, label: 'Agentlar' },
   { to: '/devices', icon: ScanFace, label: 'Qurilmalar' },
   { to: '/persons', icon: IdCard, label: 'Hodimlar' },
-  { to: '/schedules', icon: CalendarClock, label: 'Jadval' },
   { to: '/attendance', icon: CalendarCheck, label: 'Davomat' },
   { to: '/events', icon: Activity, label: 'Hodisalar' },
-  { to: '/payroll', icon: Coins, label: 'Mukofot/Jarima' },
+  // Faqat company admin: kampaniya ichki ish jarayonlari
+  { to: '/schedules', icon: CalendarClock, label: 'Jadval', roles: ['company_admin'] },
+  { to: '/payroll', icon: Coins, label: 'Mukofot/Jarima', roles: ['company_admin'] },
 ];
 
 export function Sidebar() {

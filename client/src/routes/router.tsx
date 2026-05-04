@@ -23,18 +23,28 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <DashboardPage /> },
+          // Super admin only
           {
             element: <ProtectedRoute roles={['super_admin']} />,
-            children: [{ path: '/companies', element: <CompaniesPage /> }],
+            children: [
+              { path: '/companies', element: <CompaniesPage /> },
+              { path: '/users', element: <UsersPage /> },
+            ],
           },
-          { path: '/users', element: <UsersPage /> },
+          // Both roles (server scope's by company_id)
           { path: '/agents', element: <AgentsPage /> },
           { path: '/devices', element: <DevicesPage /> },
           { path: '/persons', element: <PersonsPage /> },
-          { path: '/schedules', element: <SchedulesPage /> },
           { path: '/attendance', element: <AttendancePage /> },
           { path: '/events', element: <EventsPage /> },
-          { path: '/payroll', element: <PayrollPage /> },
+          // Company admin only — kampaniya ichki ish
+          {
+            element: <ProtectedRoute roles={['company_admin']} />,
+            children: [
+              { path: '/schedules', element: <SchedulesPage /> },
+              { path: '/payroll', element: <PayrollPage /> },
+            ],
+          },
         ],
       },
     ],
