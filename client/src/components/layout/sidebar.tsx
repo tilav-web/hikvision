@@ -12,6 +12,7 @@ import {
   CalendarCheck,
   PartyPopper,
   Plane,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -33,6 +34,7 @@ const items: NavItem[] = [
   { to: '/devices', icon: ScanFace, label: 'Qurilmalar' },
   { to: '/persons', icon: IdCard, label: 'Hodimlar' },
   { to: '/attendance', icon: CalendarCheck, label: 'Davomat' },
+  { to: '/statistics', icon: BarChart3, label: 'Statistika' },
   { to: '/events', icon: Activity, label: 'Hodisalar' },
   // Faqat company admin: kampaniya ichki ish jarayonlari
   { to: '/schedules', icon: CalendarClock, label: 'Jadval', roles: ['company_admin'] },

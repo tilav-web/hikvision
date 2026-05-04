@@ -299,6 +299,8 @@ export class AttendanceService {
     const late = rows.filter((r) => r.status === 'late').length;
     const absent = rows.filter((r) => r.status === 'absent').length;
     const partial = rows.filter((r) => r.status === 'partial').length;
+    const leave = rows.filter((r) => r.status === 'leave').length;
+    const holiday = rows.filter((r) => r.status === 'holiday').length;
     const totalLateMinutes = rows.reduce((s, r) => s + r.lateMinutes, 0);
     const totalLunchOverstay = rows.reduce(
       (s, r) => s + r.lunchOverstayMinutes,
@@ -311,9 +313,125 @@ export class AttendanceService {
       late,
       absent,
       partial,
+      leave,
+      holiday,
       totalLateMinutes,
       totalLunchOverstay,
     };
+  }
+
+  /**
+   * Hodimlar bo'yicha jami statistika — har hodim uchun agregat (kechikish daqiqalari, ish daqiqalari).
+   */
+  async perPerson(opts: {
+    current: AuthUser;
+    companyId?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const where: any = {};
+    if (opts.current.role === 'company_admin') {
+      where.companyId = opts.current.companyId;
+    } else if (opts.companyId) {
+      where.companyId = opts.companyId;
+    }
+    if (opts.from && opts.to) where.date = Between(opts.from, opts.to);
+
+    const rows = await this.repo.find({ where, relations: { person: true } });
+    const map = new Map<string, {
+      personId: string;
+      personName: string;
+      employeeNo: string;
+      totalDays: number;
+      presentDays: number;
+      lateDays: number;
+      absentDays: number;
+      leaveDays: number;
+      totalLateMinutes: number;
+      totalWorkedMinutes: number;
+      totalLunchOverstay: number;
+    }>();
+    for (const r of rows) {
+      let agg = map.get(r.personId);
+      if (!agg) {
+        agg = {
+          personId: r.personId,
+          personName: r.person?.name ?? '—',
+          employeeNo: r.person?.employeeNo ?? '',
+          totalDays: 0,
+          presentDays: 0,
+          lateDays: 0,
+          absentDays: 0,
+          leaveDays: 0,
+          totalLateMinutes: 0,
+          totalWorkedMinutes: 0,
+          totalLunchOverstay: 0,
+        };
+        map.set(r.personId, agg);
+      }
+      agg.totalDays += 1;
+      if (r.status === 'present') agg.presentDays += 1;
+      else if (r.status === 'late') agg.lateDays += 1;
+      else if (r.status === 'absent') agg.absentDays += 1;
+      else if (r.status === 'leave') agg.leaveDays += 1;
+      agg.totalLateMinutes += r.lateMinutes;
+      agg.totalWorkedMinutes += r.workedMinutes;
+      agg.totalLunchOverstay += r.lunchOverstayMinutes;
+    }
+    return [...map.values()].sort(
+      (a, b) => b.totalLateMinutes - a.totalLateMinutes,
+    );
+  }
+
+  /**
+   * Kun bo'yicha statistika (chartlar uchun trend).
+   */
+  async perDay(opts: {
+    current: AuthUser;
+    companyId?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const where: any = {};
+    if (opts.current.role === 'company_admin') {
+      where.companyId = opts.current.companyId;
+    } else if (opts.companyId) {
+      where.companyId = opts.companyId;
+    }
+    if (opts.from && opts.to) where.date = Between(opts.from, opts.to);
+
+    const rows = await this.repo.find({ where, order: { date: 'ASC' } });
+    const map = new Map<
+      string,
+      {
+        date: string;
+        total: number;
+        present: number;
+        late: number;
+        absent: number;
+        totalLateMinutes: number;
+      }
+    >();
+    for (const r of rows) {
+      let day = map.get(r.date);
+      if (!day) {
+        day = {
+          date: r.date,
+          total: 0,
+          present: 0,
+          late: 0,
+          absent: 0,
+          totalLateMinutes: 0,
+        };
+        map.set(r.date, day);
+      }
+      day.total += 1;
+      if (r.status === 'present') day.present += 1;
+      else if (r.status === 'late') day.late += 1;
+      else if (r.status === 'absent') day.absent += 1;
+      day.totalLateMinutes += r.lateMinutes;
+    }
+    return [...map.values()];
   }
 }
 

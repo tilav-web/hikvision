@@ -45,3 +45,68 @@ export function useAttendanceStats(opts: {
     },
   });
 }
+
+export interface PersonStat {
+  personId: string;
+  personName: string;
+  employeeNo: string;
+  totalDays: number;
+  presentDays: number;
+  lateDays: number;
+  absentDays: number;
+  leaveDays: number;
+  totalLateMinutes: number;
+  totalWorkedMinutes: number;
+  totalLunchOverstay: number;
+}
+
+export interface DayStat {
+  date: string;
+  total: number;
+  present: number;
+  late: number;
+  absent: number;
+  totalLateMinutes: number;
+}
+
+export function usePerPersonStats(opts: {
+  from?: string;
+  to?: string;
+  companyId?: string;
+} = {}) {
+  return useQuery({
+    queryKey: ['per-person-stats', opts],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (opts.from) params.from = opts.from;
+      if (opts.to) params.to = opts.to;
+      if (opts.companyId) params.companyId = opts.companyId;
+      const { data } = await api.get<PersonStat[]>(
+        '/hikvision/attendance/per-person',
+        { params },
+      );
+      return data;
+    },
+  });
+}
+
+export function usePerDayStats(opts: {
+  from?: string;
+  to?: string;
+  companyId?: string;
+} = {}) {
+  return useQuery({
+    queryKey: ['per-day-stats', opts],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (opts.from) params.from = opts.from;
+      if (opts.to) params.to = opts.to;
+      if (opts.companyId) params.companyId = opts.companyId;
+      const { data } = await api.get<DayStat[]>(
+        '/hikvision/attendance/per-day',
+        { params },
+      );
+      return data;
+    },
+  });
+}

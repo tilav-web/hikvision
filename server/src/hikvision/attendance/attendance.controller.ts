@@ -42,4 +42,26 @@ export class AttendanceController {
   ) {
     return this.service.stats({ current, companyId, from, to });
   }
+
+  @Get('per-person')
+  @Roles('super_admin', 'company_admin')
+  perPerson(
+    @CurrentUser() current: AuthUser,
+    @Query('companyId') companyId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.perPerson({ current, companyId, from, to });
+  }
+
+  @Get('per-day')
+  @Roles('super_admin', 'company_admin')
+  perDay(
+    @CurrentUser() current: AuthUser,
+    @Query('companyId') companyId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.perDay({ current, companyId, from, to });
+  }
 }

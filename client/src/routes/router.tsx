@@ -15,6 +15,7 @@ import { PayrollPage } from '@/pages/payroll-page';
 import { ProfilePage } from '@/pages/profile-page';
 import { HolidaysPage } from '@/pages/holidays-page';
 import { VacationsPage } from '@/pages/vacations-page';
+import { StatisticsPage } from '@/pages/statistics-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 
 export const router = createBrowserRouter([
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
           { path: '/devices', element: <DevicesPage /> },
           { path: '/persons', element: <PersonsPage /> },
           { path: '/attendance', element: <AttendancePage /> },
+          { path: '/statistics', element: <StatisticsPage /> },
           { path: '/events', element: <EventsPage /> },
           // Company admin only — kampaniya ichki ish
           {
