@@ -1,12 +1,40 @@
 import * as dotenv from 'dotenv';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: false });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+/**
+ * .env faylni 2 joyda izlaymiz, prioritet bo'yicha:
+ *   1. Joriy ishchi papka (process.cwd()) — buyruq satridan ishga tushirganda
+ *   2. Binary'ning o'z papkasi (process.execPath) — Explorer'dan yoki absolyut yo'l bilan
+ *      ishga tushirilganda. pkg bilan compile qilingan .exe uchun shu yetarli.
+ */
+const candidateDirs = [
+  process.cwd(),
+  path.dirname(process.execPath),
+];
+
+const seen = new Set<string>();
+for (const dir of candidateDirs) {
+  if (!dir || seen.has(dir)) continue;
+  seen.add(dir);
+  const envLocal = path.join(dir, '.env.local');
+  const envFile = path.join(dir, '.env');
+  if (fs.existsSync(envLocal)) {
+    dotenv.config({ path: envLocal, override: false });
+  }
+  if (fs.existsSync(envFile)) {
+    dotenv.config({ path: envFile, override: false });
+  }
+}
 
 function required(key: string): string {
   const v = process.env[key];
-  if (!v) throw new Error(`.env: '${key}' shart`);
+  if (!v) {
+    throw new Error(
+      `.env: '${key}' shart. ` +
+        `.env fayl quyidagi papkalarning birida bo'lishi kerak: ${[...seen].join(', ')}`,
+    );
+  }
   return v;
 }
 
