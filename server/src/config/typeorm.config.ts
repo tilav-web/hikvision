@@ -12,6 +12,7 @@ import { HolidayEntity } from '../hikvision/entities/holiday.entity';
 import { VacationEntity } from '../hikvision/entities/vacation.entity';
 import { CompanyEntity } from '../companies/company.entity';
 import { UserEntity } from '../users/user.entity';
+import { TelegramChannelEntity } from '../telegram/entities/telegram-channel.entity';
 
 export const allEntities = [
   CompanyEntity,
@@ -26,6 +27,7 @@ export const allEntities = [
   PenaltyEntity,
   HolidayEntity,
   VacationEntity,
+  TelegramChannelEntity,
 ];
 
 export const typeOrmAsyncConfig: TypeOrmModuleAsyncOptions = {

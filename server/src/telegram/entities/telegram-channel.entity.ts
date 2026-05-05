@@ -29,7 +29,6 @@ export type TgBotStatus =
  * doim yangilab turamiz (botStatus + isMember).
  */
 @Entity('hik_telegram_channels')
-@Index(['companyId'])
 export class TelegramChannelEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
