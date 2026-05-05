@@ -14,6 +14,7 @@ import { PenaltyEntity } from '../entities/penalty.entity';
 import { AuthUser } from '../../auth/current-user.decorator';
 import { HolidaysService } from '../holidays/holidays.service';
 import { VacationsService } from '../vacations/vacations.service';
+import { NotificationsService } from '../../telegram/notifications.service';
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0');
@@ -127,6 +128,7 @@ export class AttendanceService {
     private readonly penaltyRepo: Repository<PenaltyEntity>,
     private readonly holidays: HolidaysService,
     private readonly vacations: VacationsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(opts: {
@@ -303,6 +305,9 @@ export class AttendanceService {
     let row = await this.repo.findOne({
       where: { personId: person.id, date },
     });
+    // Notification deduping uchun avvalgi statusni eslab qolamiz —
+    // faqat boshqa holatdan 'late' ga o'tganda Telegram bildirishnoma yuborilsin.
+    const prevStatus = row?.status ?? 'absent';
     if (!row) {
       row = this.repo.create({
         companyId,
@@ -391,6 +396,18 @@ export class AttendanceService {
     } else {
       await this.penaltyRepo.delete({ attendanceId: saved.id });
     }
+
+    // Bildirishnoma — avvalgi status 'late' bo'lmay, hozir 'late' bo'lsa
+    // (recomputeDay bir necha marta chaqirilganda duplikat bo'lmasligi uchun)
+    if (prevStatus !== 'late' && saved.status === 'late') {
+      void this.notifications.dispatch('late', saved.companyId, {
+        personName: person.name,
+        employeeNo: person.employeeNo,
+        lateMinutes: saved.lateMinutes,
+        date: saved.date,
+      });
+    }
+
     return saved;
   }
 

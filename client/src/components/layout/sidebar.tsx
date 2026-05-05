@@ -13,6 +13,7 @@ import {
   PartyPopper,
   Plane,
   BarChart3,
+  MessagesSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -36,6 +37,7 @@ const items: NavItem[] = [
   { to: '/attendance', icon: CalendarCheck, label: 'Davomat' },
   { to: '/statistics', icon: BarChart3, label: 'Statistika' },
   { to: '/events', icon: Activity, label: 'Hodisalar' },
+  { to: '/telegram-channels', icon: MessagesSquare, label: 'Telegram kanallar' },
   // Faqat company admin: kampaniya ichki ish jarayonlari
   { to: '/schedules', icon: CalendarClock, label: 'Jadval', roles: ['company_admin'] },
   { to: '/holidays', icon: PartyPopper, label: 'Bayramlar', roles: ['company_admin'] },

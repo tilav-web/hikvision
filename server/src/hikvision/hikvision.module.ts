@@ -31,10 +31,12 @@ import { HolidaysController } from './holidays/holidays.controller';
 import { VacationsService } from './vacations/vacations.service';
 import { VacationsController } from './vacations/vacations.controller';
 import { CompaniesModule } from '../companies/companies.module';
+import { TelegramModule } from '../telegram/telegram.module';
 
 @Module({
   imports: [
     CompaniesModule,
+    TelegramModule,
     TypeOrmModule.forFeature([
       AgentEntity,
       DeviceEntity,

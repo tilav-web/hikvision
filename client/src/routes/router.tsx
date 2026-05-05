@@ -17,6 +17,7 @@ import { ProfilePage } from '@/pages/profile-page';
 import { HolidaysPage } from '@/pages/holidays-page';
 import { VacationsPage } from '@/pages/vacations-page';
 import { StatisticsPage } from '@/pages/statistics-page';
+import { TelegramChannelsPage } from '@/pages/telegram-channels-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 
 export const router = createBrowserRouter([
@@ -45,6 +46,7 @@ export const router = createBrowserRouter([
           { path: '/attendance', element: <AttendancePage /> },
           { path: '/statistics', element: <StatisticsPage /> },
           { path: '/events', element: <EventsPage /> },
+          { path: '/telegram-channels', element: <TelegramChannelsPage /> },
           // Company admin only — kampaniya ichki ish
           {
             element: <ProtectedRoute roles={['company_admin']} />,

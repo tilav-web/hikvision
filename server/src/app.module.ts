@@ -14,6 +14,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { UsersModule } from './users/users.module';
 import { UsersService } from './users/users.service';
 import { HealthController } from './health/health.controller';
+import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { HealthController } from './health/health.controller';
     UsersModule,
     AuthModule,
     CompaniesModule,
+    TelegramModule,
     HikvisionModule,
   ],
   controllers: [HealthController],

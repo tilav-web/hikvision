@@ -11,6 +11,7 @@ import { EventsGateway } from './events.gateway';
 import { DevicesService } from '../devices/devices.service';
 import { AuthUser } from '../../auth/current-user.decorator';
 import { AttendanceService } from '../attendance/attendance.service';
+import { NotificationsService } from '../../telegram/notifications.service';
 
 const EVENT_PIC_DIR = path.join(process.cwd(), 'uploads', 'events');
 
@@ -28,6 +29,7 @@ export class EventsService {
     private readonly devicesService: DevicesService,
     private readonly gateway: EventsGateway,
     private readonly attendance: AttendanceService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -136,6 +138,20 @@ export class EventsService {
     this.attendance.ingestEvent(saved).catch((e) =>
       this.logger.warn(`attendance ingest failed: ${(e as Error).message}`),
     );
+
+    // BlackList yuz aniqlandi — Telegram bildirishnoma. Har scan'da yuborish
+    // mumkin (rare event, dedup shart emas).
+    if (
+      person?.userType === 'blackList' &&
+      parsed.category === 'accessGranted'
+    ) {
+      void this.notifications.dispatch('blacklist', device.companyId, {
+        personName: person.name,
+        employeeNo: person.employeeNo,
+        deviceName: device.name,
+        capturedAt: parsed.capturedAt,
+      });
+    }
 
     return saved;
   }

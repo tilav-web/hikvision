@@ -18,6 +18,7 @@ import { decryptSecret } from '../../common/crypto.util';
 import { CompaniesService } from '../../companies/companies.service';
 import { AgentsService } from './agents.service';
 import { EventsGateway } from '../events/events.gateway';
+import { NotificationsService } from '../../telegram/notifications.service';
 
 interface PendingCommand {
   resolve: (data: any) => void;
@@ -84,6 +85,7 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly agentsService: AgentsService,
     @Inject(forwardRef(() => EventsGateway))
     private readonly eventsGateway: EventsGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -149,11 +151,21 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const cur = this.sockets.get(agentId);
     if (cur === client) {
       this.sockets.delete(agentId);
+      const now = new Date();
       await this.agentRepo.update(agentId, {
         isOnline: false,
-        lastSeenAt: new Date(),
+        lastSeenAt: now,
       });
       this.logger.warn(`❌ agent uzildi: agentId=${agentId}`);
+
+      // Telegram bildirishnoma — agent qaysi kampaniyaga tegishli ekanini topib yuboramiz
+      const agent = await this.agentRepo.findOne({ where: { id: agentId } });
+      if (agent) {
+        void this.notifications.dispatch('agent_offline', agent.companyId, {
+          agentName: agent.name,
+          lastSeenAt: now,
+        });
+      }
     }
   }
 
