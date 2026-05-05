@@ -1,6 +1,7 @@
 import { IsapiUserInfo, ListenerHostConfig } from './isapi/types';
 import { DevicePool } from './device-pool';
 import { SadpDiscovery } from './sadp';
+import { StreamManager } from './stream-manager';
 import { logger } from './logger';
 
 export type CommandAction =
@@ -21,7 +22,10 @@ export type CommandAction =
   | 'addCard'
   | 'deletePerson'
   | 'syncPerson'
-  | 'getSnapshot';
+  | 'getSnapshot'
+  | 'startStream'
+  | 'stopStream'
+  | 'getStreamFrame';
 
 export interface CommandEnvelope {
   id: string;
@@ -41,6 +45,7 @@ export class CommandHandler {
   constructor(
     private readonly pool: DevicePool,
     private readonly sadp: SadpDiscovery,
+    private readonly streams: StreamManager,
   ) {}
 
   async execute(cmd: CommandEnvelope): Promise<CommandResult> {
@@ -130,10 +135,21 @@ export class CommandHandler {
       case 'getSnapshot': {
         const channel = Number(cmd.payload?.channel ?? 1);
         const buf = await c.getSnapshot(channel);
-        // Socket.io binary buffer'larni qo'llaydi, lekin payload o'lcham
-        // chegarasi bilan farq qiladi. Base64 — eng portativ yo'l.
         return { imageBase64: buf.toString('base64'), bytes: buf.length };
       }
+
+      case 'startStream': {
+        const fps = Number(cmd.payload?.fps ?? 3);
+        this.streams.start(cmd.deviceId, c, fps);
+        return { ok: true, fps };
+      }
+
+      case 'stopStream':
+        this.streams.stop(cmd.deviceId);
+        return { ok: true };
+
+      case 'getStreamFrame':
+        return this.streams.getFrame(cmd.deviceId);
 
       default:
         throw new Error(`unknown action: ${(cmd as any).action}`);

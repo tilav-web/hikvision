@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useDeviceSnapshot } from '@/hooks/use-device-snapshot';
+import { useDeviceStream } from '@/hooks/use-device-stream';
 import type { Device } from '@/api/types';
 
 const FPS_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
@@ -52,7 +52,7 @@ export function CameraViewer({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const enabled = open && !paused && !!device;
-  const { imgUrl, lastFetchedAt, isInitialLoading, error } = useDeviceSnapshot(
+  const { imgUrl, lastFetchedAt, isInitialLoading, error } = useDeviceStream(
     device?.id ?? null,
     { fps, enabled },
   );

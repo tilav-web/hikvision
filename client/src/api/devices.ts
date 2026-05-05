@@ -77,17 +77,38 @@ export function useOpenDoor() {
   });
 }
 
-/**
- * Bitta JPEG snapshot oladi va blob URL qaytaradi.
- * Hookda har poll iteratsiyasida chaqirilib, oldingi URL revoke qilinadi.
- */
-export async function fetchDeviceSnapshot(
+// ─────── Kamera stream (session) ───────
+//
+// Lifecycle: client modal ochilganda startStream chaqiradi → keyin har fps
+// intervalda fetchStreamFrame → modal yopilganda stopStream.
+// Multi-viewer: server hisoblagichi 0'ga tushganda agent stream'ni to'xtatadi.
+
+export async function startDeviceStream(
   deviceId: string,
-  channel = 1,
-): Promise<Blob> {
+  fps = 3,
+): Promise<{ ok: true; viewers: number; fps: number }> {
+  const { data } = await api.post<{ ok: true; viewers: number; fps: number }>(
+    `/hikvision/devices/${deviceId}/stream/start`,
+    null,
+    { params: { fps } },
+  );
+  return data;
+}
+
+export async function stopDeviceStream(
+  deviceId: string,
+): Promise<{ ok: true; viewers: number }> {
+  const { data } = await api.post<{ ok: true; viewers: number }>(
+    `/hikvision/devices/${deviceId}/stream/stop`,
+  );
+  return data;
+}
+
+/** Agent keshidan oxirgi JPEG kadr. Sessiya yo'q bo'lsa 404. */
+export async function fetchStreamFrame(deviceId: string): Promise<Blob> {
   const { data } = await api.get<Blob>(
-    `/hikvision/devices/${deviceId}/snapshot`,
-    { responseType: 'blob', params: { channel } },
+    `/hikvision/devices/${deviceId}/stream/frame`,
+    { responseType: 'blob' },
   );
   return data;
 }

@@ -13,7 +13,6 @@ import {
   PartyPopper,
   Plane,
   BarChart3,
-  Camera,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -33,7 +32,6 @@ const items: NavItem[] = [
   // Operatsion (kampaniya ichki) — har ikkala rolga ko'rinadi, lekin scope farq qiladi
   { to: '/agents', icon: Cpu, label: 'Agentlar' },
   { to: '/devices', icon: ScanFace, label: 'Qurilmalar' },
-  { to: '/cameras', icon: Camera, label: 'Kameralar' },
   { to: '/persons', icon: IdCard, label: 'Hodimlar' },
   { to: '/attendance', icon: CalendarCheck, label: 'Davomat' },
   { to: '/statistics', icon: BarChart3, label: 'Statistika' },

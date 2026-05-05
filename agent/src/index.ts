@@ -5,6 +5,7 @@ import { DevicePool } from './device-pool';
 import { CommandHandler } from './commands';
 import { ServerLink } from './server-link';
 import { SadpDiscovery } from './sadp';
+import { StreamManager } from './stream-manager';
 
 async function main(): Promise<void> {
   setLevel(config.logLevel);
@@ -19,12 +20,14 @@ async function main(): Promise<void> {
   const pool = new DevicePool();
   const sadp = new SadpDiscovery();
   sadp.start();
-  const handler = new CommandHandler(pool, sadp);
+  const streams = new StreamManager();
+  const handler = new CommandHandler(pool, sadp, streams);
   const link = new ServerLink(config, pool, handler);
   link.start();
 
   const shutdown = (signal: string) => {
     logger.info(`🛑 ${signal} qabul qilindi, agent to'xtaydi`);
+    streams.stopAll();
     link.stop();
     sadp.stop();
     process.exit(0);

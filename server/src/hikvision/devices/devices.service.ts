@@ -21,6 +21,13 @@ import { AgentsGateway } from '../agents/agents.gateway';
 export class DevicesService {
   private readonly logger = new Logger(DevicesService.name);
   private readonly clientCache = new Map<string, IsapiClient>();
+  /**
+   * Stream session viewer hisoblagichi: bir nechta admin bir kamerani ochishi
+   * mumkin. Agentga `startStream` faqat birinchi viewer kelganda yuboriladi,
+   * `stopStream` esa oxirgi viewer chiqib ketganda. Crash holatida ham agent
+   * o'zining `lastTouch` 60s timeoutiga ko'ra o'zi to'xtaydi.
+   */
+  private readonly streamViewers = new Map<string, number>();
 
   constructor(
     @InjectRepository(DeviceEntity)
@@ -309,31 +316,97 @@ export class DevicesService {
   }
 
   /**
-   * Jonli kadr (JPEG snapshot) qaytaradi. `findOne` companyId guard'ini
-   * qo'llaydi (super_admin → barcha, company_admin → faqat o'z kampaniyasi).
-   * Agent borligida agent socket orqali, aks holda to'g'ridan ISAPI.
+   * Stream sessiyasini boshlash. Birinchi viewer kelganda agentga
+   * `startStream` yuboriladi va u qurilmadan kadrlarni keshlash boshlanadi.
+   * Keyingi viewerlar uchun faqat hisoblagich oshiriladi (idempotent).
    */
-  async getSnapshot(
+  async startStream(
     current: AuthUser,
     id: string,
-    channel = 1,
-  ): Promise<Buffer> {
+    fps = 3,
+  ): Promise<{ ok: true; viewers: number; fps: number }> {
     const device = await this.findOne(current, id);
-    if (device.agentId) {
-      if (!this.agentsGateway.isAgentOnline(device.agentId)) {
-        throw new BadRequestException(
-          `agent ulanmagan — kameraga ulanib bo'lmaydi`,
-        );
-      }
-      const result = await this.agentsGateway.sendCommand<{
-        imageBase64: string;
-        bytes: number;
-      }>(device.id, 'getSnapshot', { channel }, 10_000);
-      return Buffer.from(result.imageBase64, 'base64');
+    if (!device.agentId) {
+      throw new BadRequestException(
+        `qurilma agent bilan bog'lanmagan — stream qo'llab-quvvatlanmaydi`,
+      );
     }
-    // Fallback: agentless (server o'zi LAN'ga yetib borishi mumkin bo'lsa).
-    const client = await this.getClient(id);
-    return client.getSnapshot(channel);
+    if (!this.agentsGateway.isAgentOnline(device.agentId)) {
+      throw new BadRequestException(
+        `agent ulanmagan — kameraga ulanib bo'lmaydi`,
+      );
+    }
+
+    const cur = this.streamViewers.get(id) ?? 0;
+    const next = cur + 1;
+    this.streamViewers.set(id, next);
+
+    // Birinchi viewer (yoki fps yangilash) — agentga buyruq yuboramiz.
+    // Keyingi viewerlarda ham startStream yuboramiz, agar fps farq qilsa
+    // — bu sessiyaga ta'sir qiladi (agent fps'ni yangilaydi). Idempotent.
+    await this.agentsGateway.sendCommand<{ ok: true; fps: number }>(
+      device.id,
+      'startStream',
+      { fps },
+      10_000,
+    );
+    return { ok: true, viewers: next, fps };
+  }
+
+  /**
+   * Viewerlardan biri chiqdi. Hisoblagich 0'ga tushganda agentga
+   * `stopStream` yuboriladi.
+   */
+  async stopStream(
+    current: AuthUser,
+    id: string,
+  ): Promise<{ ok: true; viewers: number }> {
+    const device = await this.findOne(current, id);
+    if (!device.agentId) return { ok: true, viewers: 0 };
+
+    const cur = this.streamViewers.get(id) ?? 0;
+    const next = Math.max(0, cur - 1);
+    if (next === 0) this.streamViewers.delete(id);
+    else this.streamViewers.set(id, next);
+
+    if (next === 0 && this.agentsGateway.isAgentOnline(device.agentId)) {
+      // Agent bog'lanmagan bo'lsa — o'zi 60s'da timeout bo'ladi, qattiq xato emas.
+      await this.agentsGateway
+        .sendCommand(device.id, 'stopStream', {}, 5_000)
+        .catch((e) =>
+          this.logger.warn(
+            `stopStream xato (${id}): ${(e as Error).message}`,
+          ),
+        );
+    }
+    return { ok: true, viewers: next };
+  }
+
+  /**
+   * Agent keshidan oxirgi kadrni qaytaradi. Sessiya yo'q yoki kadr hali
+   * tayyor emas bo'lsa NotFoundException — UI "loading" yoki "stale" ko'rsatadi.
+   */
+  async getStreamFrame(current: AuthUser, id: string): Promise<Buffer> {
+    const device = await this.findOne(current, id);
+    if (!device.agentId) {
+      throw new BadRequestException(
+        `qurilma agent bilan bog'lanmagan`,
+      );
+    }
+    if (!this.agentsGateway.isAgentOnline(device.agentId)) {
+      throw new BadRequestException(`agent ulanmagan`);
+    }
+    const result = await this.agentsGateway.sendCommand<{
+      imageBase64: string | null;
+      bytes: number;
+      error: string | null;
+    }>(device.id, 'getStreamFrame', {}, 5_000);
+    if (!result?.imageBase64) {
+      throw new NotFoundException(
+        result?.error ?? 'kadr hali tayyor emas',
+      );
+    }
+    return Buffer.from(result.imageBase64, 'base64');
   }
 
   /** Aparat onlayn ekanini event keldi deb yangilash. */
