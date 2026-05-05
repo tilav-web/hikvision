@@ -8,6 +8,7 @@ import {
   RotateCw,
   DoorOpen,
   Camera,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
@@ -26,6 +27,7 @@ import {
 import { DeviceForm } from '@/components/device-form';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { CameraViewer } from '@/components/camera-viewer';
+import { DeviceSyncDialog } from '@/components/device-sync-dialog';
 import {
   useCreateDevice,
   useDeleteDevice,
@@ -71,6 +73,7 @@ export function DevicesPage() {
   const [editing, setEditing] = useState<Device | null>(null);
   const [deleting, setDeleting] = useState<Device | null>(null);
   const [cameraDevice, setCameraDevice] = useState<Device | null>(null);
+  const [syncDevice, setSyncDevice] = useState<Device | null>(null);
 
   const companyMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -221,6 +224,14 @@ export function DevicesPage() {
                       <Button
                         size="icon"
                         variant="ghost"
+                        title="DB bilan sinxronlash"
+                        onClick={() => setSyncDevice(d)}
+                      >
+                        <ArrowRightLeft />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
                         title="Ulanishni tekshirish"
                         onClick={() => onTest(d.id)}
                       >
@@ -307,6 +318,12 @@ export function DevicesPage() {
         device={cameraDevice}
         open={!!cameraDevice}
         onOpenChange={(o) => !o && setCameraDevice(null)}
+      />
+
+      <DeviceSyncDialog
+        device={syncDevice}
+        open={!!syncDevice}
+        onOpenChange={(o) => !o && setSyncDevice(null)}
       />
     </div>
   );

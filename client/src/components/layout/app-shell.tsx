@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
+import { UnknownPersonListener } from '../unknown-person-listener';
 
 export function AppShell() {
   return (
@@ -12,6 +13,8 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      {/* Global real-time noma'lum shaxs eshituvchi — toast'lar va tezkor "qo'shish" */}
+      <UnknownPersonListener />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DevicesService } from './devices.service';
+import { DeviceSyncService } from './device-sync.service';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
 import { Roles } from '../../auth/roles.decorator';
@@ -20,7 +21,10 @@ import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 @ApiBearerAuth()
 @Controller('hikvision/devices')
 export class DevicesController {
-  constructor(private readonly service: DevicesService) {}
+  constructor(
+    private readonly service: DevicesService,
+    private readonly sync: DeviceSyncService,
+  ) {}
 
   @Post()
   @Roles('super_admin', 'company_admin')
@@ -122,4 +126,57 @@ export class DevicesController {
 
   // Kamera stream — endi WebSocket asosida (events.gateway). HTTP endpoint'lar
   // olib tashlandi; brauzer to'g'ridan socket orqali subscribe bo'ladi.
+
+  // ───── User sinxronlash (DB ↔ aparat) ─────
+
+  @Get(':id/sync/compare')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary: 'Aparat va DB user\'larini solishtirish (diff)',
+  })
+  compare(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.sync.compare(current, id);
+  }
+
+  @Post(':id/sync/import')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary: 'Aparat user\'larini DB\'ga import qilish (employeeNo ro\'yxati)',
+  })
+  importFromDevice(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { employeeNos: string[] },
+  ) {
+    return this.sync.importFromDevice(current, id, body.employeeNos ?? []);
+  }
+
+  @Post(':id/sync/push')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary: 'DB person\'larini aparatga yuborish (personId ro\'yxati)',
+  })
+  pushToDevice(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { personIds: string[] },
+  ) {
+    return this.sync.pushToDevice(current, id, body.personIds ?? []);
+  }
+
+  @Post(':id/sync/delete')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary: 'Faqat aparatdan o\'chirish (DB tegmaydi)',
+  })
+  deleteFromDevice(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { employeeNos: string[] },
+  ) {
+    return this.sync.deleteFromDevice(current, id, body.employeeNos ?? []);
+  }
 }

@@ -15,6 +15,11 @@ import {
   CreditCard,
   Wallet,
   Banknote,
+  ScanFace,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Upload,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +38,13 @@ import {
 } from '@/components/ui/table';
 import { usePerson } from '@/api/persons';
 import { usePersonStats } from '@/api/attendance';
+import {
+  usePersonDeviceStatus,
+  usePushToDevice,
+  type PersonDeviceStatus,
+} from '@/api/devices';
+import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/lib/api';
 import type { AttendanceStatus } from '@/api/types';
 
 function pad(n: number): string {
@@ -339,6 +351,9 @@ export function PersonDetailPage() {
           {/* Maosh hisobi */}
           <SalaryCard salary={stats.salary} />
 
+          {/* Aparat sinxron statusi */}
+          {personId && <DeviceSyncStatusCard personId={personId} />}
+
           {/* Kunlar jadvali */}
           <Card>
             <div className="px-4 py-3 border-b border-(--color-border) text-sm text-(--color-muted-foreground)">
@@ -569,6 +584,155 @@ function SalaryRow({
     <div className="flex items-center justify-between">
       <span className="text-(--color-muted-foreground)">{label}</span>
       <span className={cls}>{fmtMoney(value)}</span>
+    </div>
+  );
+}
+
+function DeviceSyncStatusCard({
+  personId,
+}: Readonly<{ personId: string }>) {
+  const { data, isLoading, refetch, isFetching } =
+    usePersonDeviceStatus(personId);
+  const push = usePushToDevice();
+
+  if (isLoading) {
+    return (
+      <Card className="p-5 mb-5 flex items-center gap-2 text-sm text-(--color-muted-foreground)">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Aparat statusi tekshirilmoqda...
+      </Card>
+    );
+  }
+  if (!data || data.length === 0) {
+    return (
+      <Card className="p-5 mb-5 bg-(--color-secondary)/20 border-dashed">
+        <div className="flex items-start gap-3 text-sm text-(--color-muted-foreground)">
+          <ScanFace className="h-5 w-5 mt-0.5" />
+          <div>
+            <div className="font-medium text-(--color-foreground) mb-1">
+              Aparat yo'q
+            </div>
+            Bu kampaniyada hech qanday qurilma yo'q yoki person hech qaysi
+            qurilmaga biriktirilmagan.
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  const onPush = (deviceId: string) => {
+    push.mutate(
+      { deviceId, personIds: [personId] },
+      {
+        onSuccess: (res) => {
+          if (res.failed.length === 0) {
+            toast.success('Aparatga sinxronlandi');
+            refetch();
+          } else {
+            toast.error(res.failed[0].error);
+          }
+        },
+        onError: (e) => toast.error(getApiErrorMessage(e)),
+      },
+    );
+  };
+
+  const missingCount = data.filter((d) => d.onDevice === false).length;
+  const onCount = data.filter((d) => d.onDevice === true).length;
+
+  return (
+    <Card className="p-5 mb-5">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <ScanFace className="h-5 w-5" />
+          <h2 className="text-base font-semibold">Aparat sinxron statusi</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {missingCount > 0 && (
+            <Badge variant="warning">{missingCount} aparatda yo'q</Badge>
+          )}
+          {onCount > 0 && (
+            <Badge variant="success">{onCount} aparatda bor</Badge>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            {isFetching ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ScanFace className="h-3.5 w-3.5" />
+            )}
+            Qayta tekshirish
+          </Button>
+        </div>
+      </div>
+
+      <div className="divide-y divide-(--color-border)/40">
+        {data.map((d) => (
+          <DeviceStatusRow
+            key={d.deviceId}
+            row={d}
+            onPush={() => onPush(d.deviceId)}
+            pushing={push.isPending && push.variables?.deviceId === d.deviceId}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function DeviceStatusRow({
+  row,
+  onPush,
+  pushing,
+}: Readonly<{
+  row: PersonDeviceStatus;
+  onPush: () => void;
+  pushing: boolean;
+}>) {
+  let icon: React.ReactNode;
+  let text: string;
+  let cls = '';
+  if (row.error) {
+    icon = <HelpCircle className="h-5 w-5" />;
+    text = row.error;
+    cls = 'text-(--color-muted-foreground)';
+  } else if (row.onDevice === true) {
+    icon = <CheckCircle2 className="h-5 w-5" />;
+    text = 'Aparatda mavjud';
+    cls = 'text-emerald-600';
+  } else if (row.onDevice === false) {
+    icon = <XCircle className="h-5 w-5" />;
+    text = 'Aparatda yo\'q — sinxronlashni xohlaysizmi?';
+    cls = 'text-red-600';
+  } else {
+    icon = <HelpCircle className="h-5 w-5" />;
+    text = 'Holat noma\'lum';
+    cls = 'text-(--color-muted-foreground)';
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 py-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <span className={cls}>{icon}</span>
+        <div className="min-w-0">
+          <div className="font-medium truncate">{row.deviceName}</div>
+          <div className={`text-xs ${cls}`}>{text}</div>
+        </div>
+      </div>
+      {row.onDevice === false && (
+        <Button size="sm" onClick={onPush} disabled={pushing}>
+          {pushing ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Upload className="h-3.5 w-3.5" />
+          )}
+          Sinxronlash
+        </Button>
+      )}
     </div>
   );
 }

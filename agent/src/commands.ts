@@ -25,7 +25,8 @@ export type CommandAction =
   | 'getSnapshot'
   | 'startStream'
   | 'stopStream'
-  | 'getStreamFrame';
+  | 'getStreamFrame'
+  | 'enumerateUsers';
 
 export interface CommandEnvelope {
   id: string;
@@ -109,6 +110,12 @@ export class CommandHandler {
         return c.searchUsers({
           employeeNo: cmd.payload?.employeeNo,
           maxResults: cmd.payload?.maxResults ?? 1,
+        });
+
+      case 'enumerateUsers':
+        return c.enumerateUsers({
+          pageSize: cmd.payload?.pageSize,
+          hardLimit: cmd.payload?.hardLimit,
         });
 
       case 'uploadFace': {

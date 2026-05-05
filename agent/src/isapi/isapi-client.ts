@@ -340,6 +340,53 @@ export class IsapiClient {
     };
   }
 
+  /**
+   * Aparatdagi BARCHA userlarni paginatsiya orqali yig'adi.
+   * Server tomondan reconciliation/sync uchun.
+   *
+   *  - pageSize: bir so'rovda ko'pi bilan necha (Hikvision odatda 30 chegarasi)
+   *  - hardLimit: xavfsizlik chegarasi — cheksiz aylanmaslik uchun (default 10000)
+   *
+   * Hikvision javobida `responseStatusStrg` "MORE" yoki "OK"; "OK" — oxirgi sahifa.
+   */
+  async enumerateUsers(
+    opts: { pageSize?: number; hardLimit?: number } = {},
+  ): Promise<{ totalMatches: number; users: any[] }> {
+    const pageSize = Math.max(1, Math.min(50, opts.pageSize ?? 30));
+    const hardLimit = opts.hardLimit ?? 10_000;
+    const searchID = `enum_${Date.now()}`;
+
+    const collected: any[] = [];
+    let position = 0;
+    let total = 0;
+
+    while (collected.length < hardLimit) {
+      const body = {
+        UserInfoSearchCond: {
+          searchID,
+          searchResultPosition: position,
+          maxResults: pageSize,
+        },
+      };
+      const res = await this.request(
+        'POST',
+        '/ISAPI/AccessControl/UserInfo/Search?format=json',
+        { data: body, headers: { 'Content-Type': 'application/json' } },
+      );
+      this.throwIfNotOk(res, 'enumerateUsers');
+      const r = (res.data as any).UserInfoSearch ?? res.data;
+      const users: any[] = r.UserInfo ?? [];
+      total = r.totalMatches ?? collected.length + users.length;
+      if (users.length === 0) break;
+      collected.push(...users);
+      const status = String(r.responseStatusStrg ?? 'OK').toUpperCase();
+      if (status !== 'MORE' && users.length < pageSize) break;
+      position += users.length;
+    }
+
+    return { totalMatches: total, users: collected };
+  }
+
   async uploadFace(employeeNo: string, jpeg: Buffer): Promise<FaceUploadResult> {
     const form = new FormData();
     const meta = { faceLibType: 'blackFD', FDID: '1', FPID: employeeNo };

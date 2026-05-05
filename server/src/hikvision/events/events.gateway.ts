@@ -236,4 +236,25 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(companyRoom(companyId)).emit('device:status', payload);
     }
   }
+
+  /**
+   * Aparat orqali noma'lum employeeNo bilan event keldi (DB'da person yo'q).
+   * Admin'ga banner ko'rsatish va "DB'ga import" tugmasi taqdim etish uchun.
+   */
+  emitUnknownPerson(payload: {
+    companyId: string | null;
+    deviceId: string;
+    deviceName?: string;
+    employeeNo: string;
+    personName: string | null;
+    capturedAt: Date;
+    pictureUrl: string | null;
+  }) {
+    this.server.to(SUPER_ROOM).emit('unknown:person', payload);
+    if (payload.companyId) {
+      this.server
+        .to(companyRoom(payload.companyId))
+        .emit('unknown:person', payload);
+    }
+  }
 }

@@ -11,6 +11,7 @@ import { PenaltyEntity } from './entities/penalty.entity';
 import { HolidayEntity } from './entities/holiday.entity';
 import { VacationEntity } from './entities/vacation.entity';
 import { DevicesService } from './devices/devices.service';
+import { DeviceSyncService } from './devices/device-sync.service';
 import { DevicesController } from './devices/devices.controller';
 import { PersonsService } from './persons/persons.service';
 import { PersonsController } from './persons/persons.controller';
@@ -63,6 +64,7 @@ import { TelegramModule } from '../telegram/telegram.module';
   ],
   providers: [
     DevicesService,
+    DeviceSyncService,
     PersonsService,
     EventsService,
     EventsGateway,
@@ -76,6 +78,7 @@ import { TelegramModule } from '../telegram/telegram.module';
   ],
   exports: [
     DevicesService,
+    DeviceSyncService,
     PersonsService,
     EventsService,
     AgentsGateway,

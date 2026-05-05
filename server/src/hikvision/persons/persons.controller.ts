@@ -22,6 +22,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { PersonsService } from './persons.service';
+import { DeviceSyncService } from '../devices/device-sync.service';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { Roles } from '../../auth/roles.decorator';
@@ -31,7 +32,23 @@ import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 @ApiBearerAuth()
 @Controller('hikvision/persons')
 export class PersonsController {
-  constructor(private readonly service: PersonsService) {}
+  constructor(
+    private readonly service: PersonsService,
+    private readonly deviceSync: DeviceSyncService,
+  ) {}
+
+  @Get(':id/device-status')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary:
+      'Hodim har bir kampaniya qurilmasida bormi tekshirish (sinxron statusi)',
+  })
+  deviceStatus(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.deviceSync.checkPersonOnDevices(current, id);
+  }
 
   @Post()
   @Roles('super_admin', 'company_admin')

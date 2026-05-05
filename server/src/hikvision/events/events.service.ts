@@ -153,6 +153,25 @@ export class EventsService {
       });
     }
 
+    // Noma'lum shaxs — employeeNo bor lekin DB'da person yo'q
+    // → admin'ga real-time banner ko'rsatamiz (import qilish uchun)
+    if (
+      !person &&
+      parsed.employeeNo &&
+      parsed.category === 'accessGranted' &&
+      device.companyId
+    ) {
+      this.gateway.emitUnknownPerson({
+        companyId: device.companyId,
+        deviceId: device.id,
+        deviceName: device.name,
+        employeeNo: parsed.employeeNo,
+        personName: parsed.personName,
+        capturedAt: parsed.capturedAt,
+        pictureUrl,
+      });
+    }
+
     return saved;
   }
 
