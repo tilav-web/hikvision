@@ -160,6 +160,34 @@ export class IsapiClient {
     }
   }
 
+  /**
+   * Qurilmadan jonli kadr (JPEG snapshot) olish. ISAPI:
+   *   GET /ISAPI/Streaming/channels/<channelNo>01/picture
+   * Default channelNo=1 (asosiy oqim). Buffer qaytadi, content-type'ni
+   * tekshiramiz — image/* bo'lmasa xato.
+   */
+  async getSnapshot(channelNo = 1): Promise<Buffer> {
+    const path = `/ISAPI/Streaming/channels/${channelNo}01/picture`;
+    const res = await this.request<ArrayBuffer>('GET', path, {
+      responseType: 'arraybuffer',
+    });
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`ISAPI getSnapshot failed: ${res.status}`);
+    }
+    const ctRaw: unknown =
+      res.headers['content-type'] ?? res.headers['Content-Type'];
+    let ct = '';
+    if (typeof ctRaw === 'string') ct = ctRaw.toLowerCase();
+    else if (Array.isArray(ctRaw) && typeof ctRaw[0] === 'string') {
+      ct = ctRaw[0].toLowerCase();
+    }
+    if (!ct.startsWith('image/')) {
+      throw new Error(`unexpected content-type: ${ct || 'none'}`);
+    }
+    // axios responseType=arraybuffer → Buffer.from buffer'i sifatida qaytaramiz.
+    return Buffer.from(res.data as ArrayBuffer);
+  }
+
   async ping(): Promise<boolean> {
     try {
       const res = await this.request('GET', '/ISAPI/System/deviceInfo?format=json');

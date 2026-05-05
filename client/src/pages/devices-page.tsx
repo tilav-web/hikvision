@@ -7,6 +7,7 @@ import {
   Activity,
   RotateCw,
   DoorOpen,
+  Camera,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import { DeviceForm } from '@/components/device-form';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { CameraViewer } from '@/components/camera-viewer';
 import {
   useCreateDevice,
   useDeleteDevice,
@@ -68,6 +70,7 @@ export function DevicesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Device | null>(null);
   const [deleting, setDeleting] = useState<Device | null>(null);
+  const [cameraDevice, setCameraDevice] = useState<Device | null>(null);
 
   const companyMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -210,6 +213,14 @@ export function DevicesPage() {
                       <Button
                         size="icon"
                         variant="ghost"
+                        title="Kameraga qarash"
+                        onClick={() => setCameraDevice(d)}
+                      >
+                        <Camera />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
                         title="Ulanishni tekshirish"
                         onClick={() => onTest(d.id)}
                       >
@@ -290,6 +301,12 @@ export function DevicesPage() {
         loading={remove.isPending}
         confirmText="O'chirish"
         onConfirm={onDelete}
+      />
+
+      <CameraViewer
+        device={cameraDevice}
+        open={!!cameraDevice}
+        onOpenChange={(o) => !o && setCameraDevice(null)}
       />
     </div>
   );

@@ -308,6 +308,34 @@ export class DevicesService {
     });
   }
 
+  /**
+   * Jonli kadr (JPEG snapshot) qaytaradi. `findOne` companyId guard'ini
+   * qo'llaydi (super_admin → barcha, company_admin → faqat o'z kampaniyasi).
+   * Agent borligida agent socket orqali, aks holda to'g'ridan ISAPI.
+   */
+  async getSnapshot(
+    current: AuthUser,
+    id: string,
+    channel = 1,
+  ): Promise<Buffer> {
+    const device = await this.findOne(current, id);
+    if (device.agentId) {
+      if (!this.agentsGateway.isAgentOnline(device.agentId)) {
+        throw new BadRequestException(
+          `agent ulanmagan — kameraga ulanib bo'lmaydi`,
+        );
+      }
+      const result = await this.agentsGateway.sendCommand<{
+        imageBase64: string;
+        bytes: number;
+      }>(device.id, 'getSnapshot', { channel }, 10_000);
+      return Buffer.from(result.imageBase64, 'base64');
+    }
+    // Fallback: agentless (server o'zi LAN'ga yetib borishi mumkin bo'lsa).
+    const client = await this.getClient(id);
+    return client.getSnapshot(channel);
+  }
+
   /** Aparat onlayn ekanini event keldi deb yangilash. */
   async markSeen(id: string): Promise<void> {
     await this.repo.update(id, { isOnline: true, lastSeenAt: new Date() });

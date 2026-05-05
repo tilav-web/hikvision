@@ -7,6 +7,7 @@ import { CompaniesPage } from '@/pages/companies-page';
 import { UsersPage } from '@/pages/users-page';
 import { AgentsPage } from '@/pages/agents-page';
 import { DevicesPage } from '@/pages/devices-page';
+import { CamerasPage } from '@/pages/cameras-page';
 import { PersonsPage } from '@/pages/persons-page';
 import { PersonDetailPage } from '@/pages/person-detail-page';
 import { SchedulesPage } from '@/pages/schedules-page';
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
           // Both roles (server scope's by company_id)
           { path: '/agents', element: <AgentsPage /> },
           { path: '/devices', element: <DevicesPage /> },
+          { path: '/cameras', element: <CamerasPage /> },
           { path: '/persons', element: <PersonsPage /> },
           { path: '/persons/:id', element: <PersonDetailPage /> },
           { path: '/attendance', element: <AttendancePage /> },

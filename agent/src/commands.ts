@@ -20,7 +20,8 @@ export type CommandAction =
   | 'deleteFace'
   | 'addCard'
   | 'deletePerson'
-  | 'syncPerson';
+  | 'syncPerson'
+  | 'getSnapshot';
 
 export interface CommandEnvelope {
   id: string;
@@ -125,6 +126,14 @@ export class CommandHandler {
         await c.deleteFace(cmd.payload.employeeNo).catch(() => undefined);
         await c.deleteUser(cmd.payload.employeeNo);
         return { ok: true };
+
+      case 'getSnapshot': {
+        const channel = Number(cmd.payload?.channel ?? 1);
+        const buf = await c.getSnapshot(channel);
+        // Socket.io binary buffer'larni qo'llaydi, lekin payload o'lcham
+        // chegarasi bilan farq qiladi. Base64 — eng portativ yo'l.
+        return { imageBase64: buf.toString('base64'), bytes: buf.length };
+      }
 
       default:
         throw new Error(`unknown action: ${(cmd as any).action}`);

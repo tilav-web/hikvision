@@ -393,6 +393,17 @@ export class IsapiClient {
   // ───────────────────────── Eshik ─────────────────────────
 
   /** Eshikni masofadan ochish. doorNo default 1. */
+  /** Jonli kadr (JPEG) — ISAPI: GET /Streaming/channels/<channelNo>01/picture */
+  async getSnapshot(channelNo = 1): Promise<Buffer> {
+    const res = await this.request<ArrayBuffer>(
+      'GET',
+      `/ISAPI/Streaming/channels/${channelNo}01/picture`,
+      { responseType: 'arraybuffer' },
+    );
+    this.throwIfNotOk(res, 'getSnapshot');
+    return Buffer.from(res.data);
+  }
+
   async openDoor(doorNo = 1): Promise<void> {
     const body = { RemoteControlDoor: { cmd: 'open' } };
     const res = await this.request(

@@ -76,3 +76,18 @@ export function useOpenDoor() {
       (await api.post<{ ok: boolean }>(`/hikvision/devices/${id}/open-door`)).data,
   });
 }
+
+/**
+ * Bitta JPEG snapshot oladi va blob URL qaytaradi.
+ * Hookda har poll iteratsiyasida chaqirilib, oldingi URL revoke qilinadi.
+ */
+export async function fetchDeviceSnapshot(
+  deviceId: string,
+  channel = 1,
+): Promise<Blob> {
+  const { data } = await api.get<Blob>(
+    `/hikvision/devices/${deviceId}/snapshot`,
+    { responseType: 'blob', params: { channel } },
+  );
+  return data;
+}

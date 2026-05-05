@@ -3,13 +3,18 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { Response } from 'express';
 import { DevicesService } from './devices.service';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
@@ -118,5 +123,29 @@ export class DevicesController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.service.syncTime(current, id).then(() => ({ ok: true }));
+  }
+
+  /**
+   * Jonli kadr (JPEG). UI snapshot polling uchun.
+   * Throttle: 10 req/s kifoya — 3-5 fps polling'ga yetadi, abuse'dan himoya.
+   * Authorization: companyId guard `findOne` ichida (super_admin → barcha,
+   * company_admin → faqat o'z kampaniyasi qurilmasi).
+   */
+  @Get(':id/snapshot')
+  @Roles('super_admin', 'company_admin')
+  @Throttle({ default: { limit: 10, ttl: 1_000 } })
+  @ApiOperation({ summary: 'Aparatdan jonli JPEG kadr olish' })
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  @Header('Pragma', 'no-cache')
+  async snapshot(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('channel', new ParseIntPipe({ optional: true })) channel: number | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buf = await this.service.getSnapshot(current, id, channel ?? 1);
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Content-Length', buf.length.toString());
+    res.end(buf);
   }
 }
