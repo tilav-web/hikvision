@@ -18,7 +18,9 @@ export type AttendanceStatus =
   | 'absent'
   | 'leave'
   | 'partial'
-  | 'holiday';
+  | 'holiday'
+  | 'currently_inside'
+  | 'overtime';
 
 /**
  * Kunlik agregat: hodim qachon kirgan/chiqqan, kechikkanmi.
@@ -74,6 +76,22 @@ export class AttendanceEntity {
 
   @Column({ type: 'int', default: 0 })
   workedMinutes!: number;
+
+  /** workEnd dan keyin ishlangan daqiqalar (overtime) */
+  @Column({ type: 'int', default: 0 })
+  overtimeMinutes!: number;
+
+  /** workStart dan oldin kelgan daqiqalar (early arrival) */
+  @Column({ type: 'int', default: 0 })
+  earlyArrivalMinutes!: number;
+
+  /** Bugun nechtga marta `in` qilgan */
+  @Column({ type: 'int', default: 0 })
+  enterCount!: number;
+
+  /** Bugun nechta marta `out` qilgan */
+  @Column({ type: 'int', default: 0 })
+  exitCount!: number;
 
   @Column({ type: 'varchar', length: 16, default: 'absent' })
   status!: AttendanceStatus;

@@ -1,4 +1,8 @@
-import { EventCategory, VerifyMode } from '../entities/access-event.entity';
+import {
+  AccessDirection,
+  EventCategory,
+  VerifyMode,
+} from '../entities/access-event.entity';
 
 /**
  * AcsEvent (Access Control Event) majorEvent codes (Hikvision standart):
@@ -56,7 +60,55 @@ export interface ParsedAcsEvent {
   verifyMode: VerifyMode;
   employeeNo: string | null;
   personName: string | null;
+  /** 'both' rejimdagi qurilmadan kelgan tugma yo'nalishi (entry/exit) */
+  direction: AccessDirection | null;
   raw: Record<string, any>;
+}
+
+const IN_TOKENS = new Set(['in', 'entry', 'enter', 'entrance']);
+const OUT_TOKENS = new Set(['out', 'exit', 'leave']);
+
+function directionFromString(v: unknown): AccessDirection | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim().toLowerCase();
+  if (IN_TOKENS.has(s)) return 'in';
+  if (OUT_TOKENS.has(s)) return 'out';
+  return null;
+}
+
+/**
+ * Hikvision event payload'idan kirish/chiqish yo'nalishini chiqarish.
+ * Proshivka versiyalariga qarab field nomi farq qiladi — bir nechta keng tarqalgan
+ * variantlarni tekshiramiz.
+ */
+function extractDirection(acs: any): AccessDirection | null {
+  if (!acs || typeof acs !== 'object') return null;
+
+  // 1) To'g'ridan-to'g'ri "in"/"out" string field'lar
+  const candidates = [
+    acs.inOut,
+    acs.InOut,
+    acs.accessType,
+    acs.directionType,
+    acs.entryType,
+    acs.EntryType,
+    acs.swipeType,
+  ];
+  for (const v of candidates) {
+    const dir = directionFromString(v);
+    if (dir) return dir;
+  }
+
+  // 2) cardReaderNo: ko'pchilik DS-K seriyasida 1 = entry reader, 2 = exit reader
+  const reader = toInt(acs.cardReaderNo ?? acs.CardReaderNo);
+  if (reader === 1) return 'in';
+  if (reader === 2) return 'out';
+
+  // 3) Boolean field
+  if (typeof acs.isEntry === 'boolean') return acs.isEntry ? 'in' : 'out';
+  if (typeof acs.isExit === 'boolean') return acs.isExit ? 'out' : 'in';
+
+  return null;
 }
 
 /**
@@ -111,6 +163,7 @@ export function parseAcsEventPayload(payload: any): ParsedAcsEvent | null {
     verifyMode: classifyVerifyMode(acs.currentVerifyMode),
     employeeNo: stringOrNull(acs.employeeNoString ?? acs.employeeNo),
     personName: stringOrNull(acs.name),
+    direction: extractDirection(acs),
     raw: outer,
   };
 }

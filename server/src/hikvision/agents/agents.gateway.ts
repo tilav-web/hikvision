@@ -190,6 +190,32 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   /**
+   * Agentning o'ziga buyruq yuborish (deviceId talab qilinmaydi).
+   * Masalan 'inspect' kabi agent darajasidagi buyruqlar uchun.
+   */
+  async sendAgentCommand<T = any>(
+    agentId: string,
+    action: string,
+    payload: any = {},
+    timeoutMs = 30_000,
+  ): Promise<T> {
+    const sock = this.sockets.get(agentId);
+    if (!sock) throw new Error(`agent ${agentId} ulanmagan`);
+
+    const id = crypto.randomUUID();
+    const cmd: AgentCommand = { id, deviceId: '', action, payload };
+
+    return new Promise<T>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`agent timeout: ${action} (${timeoutMs}ms)`));
+      }, timeoutMs);
+      this.pending.set(id, { resolve, reject, timeout });
+      sock.emit('agent:cmd', cmd);
+    });
+  }
+
+  /**
    * Agentga uning qurilma ro'yxati o'zgarganini xabar qilish
    * (CRUD bilan device yangilanganda chaqiriladi).
    */

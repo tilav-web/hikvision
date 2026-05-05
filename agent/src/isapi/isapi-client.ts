@@ -3,7 +3,13 @@ import * as https from 'https';
 import FormData from 'form-data';
 import { XMLParser } from 'fast-xml-parser';
 import { DigestChallenge, buildAuthorizationHeader, parseWwwAuthenticate } from './digest-auth';
-import { DeviceCredentials, FaceUploadResult, IsapiUserInfo } from './types';
+import {
+  DeviceCredentials,
+  DeviceInfo,
+  FaceUploadResult,
+  IsapiUserInfo,
+  ListenerHostConfig,
+} from './types';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -12,6 +18,23 @@ const xmlParser = new XMLParser({
   parseTagValue: true,
   trimValues: true,
 });
+
+function escapeXml(s: string | number | boolean): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function toXml(rootName: string, obj: Record<string, any>): string {
+  const inner = Object.entries(obj)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => `<${k}>${escapeXml(v)}</${k}>`)
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><${rootName}>${inner}</${rootName}>`;
+}
 
 function maybeParseXml(data: any, contentType?: string): any {
   if (data == null) return data;
@@ -144,6 +167,82 @@ export class IsapiClient {
     } catch {
       return false;
     }
+  }
+
+  async getDeviceInfo(): Promise<DeviceInfo> {
+    const res = await this.request('GET', '/ISAPI/System/deviceInfo?format=json');
+    this.throwIfNotOk(res, 'getDeviceInfo');
+    const d = (res.data as any).DeviceInfo ?? res.data;
+    return {
+      deviceName: d.deviceName,
+      deviceID: d.deviceID,
+      model: d.model,
+      serialNumber: d.serialNumber,
+      macAddress: d.macAddress,
+      firmwareVersion: d.firmwareVersion,
+      firmwareReleasedDate: d.firmwareReleasedDate,
+    };
+  }
+
+  async reboot(): Promise<void> {
+    const res = await this.request('PUT', '/ISAPI/System/reboot');
+    this.throwIfNotOk(res, 'reboot');
+  }
+
+  async setTimeNow(): Promise<void> {
+    const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Time><timeMode>manual</timeMode><localTime>${now}</localTime><timeZone>CST-5:00:00</timeZone></Time>`;
+    const res = await this.request('PUT', '/ISAPI/System/time', {
+      data: xml,
+      headers: { 'Content-Type': 'application/xml' },
+    });
+    this.throwIfNotOk(res, 'setTimeNow');
+  }
+
+  async openDoor(doorNo = 1): Promise<void> {
+    const body = { RemoteControlDoor: { cmd: 'open' } };
+    const res = await this.request(
+      'PUT',
+      `/ISAPI/AccessControl/RemoteControl/door/${doorNo}?format=json`,
+      {
+        data: body,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+    this.throwIfNotOk(res, 'openDoor');
+  }
+
+  async setupListenerHost(cfg: ListenerHostConfig): Promise<void> {
+    const parsed = new URL(cfg.url);
+    const ip = cfg.ipAddress ?? parsed.hostname;
+    const defaultPort = parsed.protocol === 'https:' ? 443 : 80;
+    const explicitPort = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort;
+    const port = cfg.portNo ?? explicitPort;
+    const path = parsed.pathname + (parsed.search || '');
+
+    const fields: Record<string, any> = {
+      id: cfg.id ?? 1,
+      url: path,
+      protocolType: cfg.protocolType,
+      parameterFormatType: cfg.parameterFormatType ?? 'JSON',
+      addressingFormatType: cfg.addressingFormatType ?? 'ipaddress',
+      ipAddress: ip,
+      portNo: port,
+      httpAuthenticationMethod: cfg.httpAuthenticationMethod ?? 'none',
+    };
+    if (cfg.hostName) fields.hostName = cfg.hostName;
+
+    const xml = toXml('HttpHostNotification', fields);
+    const res = await this.request(
+      'PUT',
+      `/ISAPI/Event/notification/httpHosts/${cfg.id ?? 1}`,
+      {
+        data: xml,
+        headers: { 'Content-Type': 'application/xml' },
+      },
+    );
+    this.throwIfNotOk(res, 'setupListenerHost');
   }
 
   private normalizeUser(u: IsapiUserInfo): IsapiUserInfo {

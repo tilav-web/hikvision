@@ -24,3 +24,25 @@ export interface FaceUploadResult {
   errorMsg?: string;
   [k: string]: any;
 }
+
+export interface DeviceInfo {
+  deviceName?: string;
+  deviceID?: string;
+  model?: string;
+  serialNumber?: string;
+  macAddress?: string;
+  firmwareVersion?: string;
+  firmwareReleasedDate?: string;
+}
+
+export interface ListenerHostConfig {
+  id?: number;
+  url: string;
+  protocolType: 'HTTP' | 'HTTPS';
+  parameterFormatType?: 'JSON' | 'XML';
+  addressingFormatType?: 'ipaddress' | 'hostname';
+  ipAddress?: string;
+  hostName?: string;
+  portNo?: number;
+  httpAuthenticationMethod?: 'none' | 'digest';
+}

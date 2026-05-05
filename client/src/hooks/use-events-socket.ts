@@ -3,7 +3,8 @@ import { io, Socket } from 'socket.io-client';
 import type { AccessEvent } from '@/api/types';
 import { useAuthStore } from '@/stores/auth-store';
 
-const NAMESPACE = '/events';
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+const NAMESPACE_URL = `${API_BASE}/events`;
 
 export function useEventsSocket(onEvent: (event: AccessEvent & { deviceName?: string }) => void) {
   const token = useAuthStore((s) => s.token);
@@ -13,7 +14,7 @@ export function useEventsSocket(onEvent: (event: AccessEvent & { deviceName?: st
 
   useEffect(() => {
     if (!token) return;
-    const socket: Socket = io(NAMESPACE, {
+    const socket: Socket = io(NAMESPACE_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
     });

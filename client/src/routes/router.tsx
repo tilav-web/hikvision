@@ -8,6 +8,7 @@ import { UsersPage } from '@/pages/users-page';
 import { AgentsPage } from '@/pages/agents-page';
 import { DevicesPage } from '@/pages/devices-page';
 import { PersonsPage } from '@/pages/persons-page';
+import { PersonDetailPage } from '@/pages/person-detail-page';
 import { SchedulesPage } from '@/pages/schedules-page';
 import { EventsPage } from '@/pages/events-page';
 import { AttendancePage } from '@/pages/attendance-page';
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
           { path: '/agents', element: <AgentsPage /> },
           { path: '/devices', element: <DevicesPage /> },
           { path: '/persons', element: <PersonsPage /> },
+          { path: '/persons/:id', element: <PersonDetailPage /> },
           { path: '/attendance', element: <AttendancePage /> },
           { path: '/statistics', element: <StatisticsPage /> },
           { path: '/events', element: <EventsPage /> },

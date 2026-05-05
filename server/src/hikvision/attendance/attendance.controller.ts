@@ -1,5 +1,5 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { Roles } from '../../auth/roles.decorator';
 import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
@@ -63,5 +63,33 @@ export class AttendanceController {
     @Query('to') to?: string,
   ) {
     return this.service.perDay({ current, companyId, from, to });
+  }
+
+  @Get(':id/events')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary:
+      'Bitta attendance kunining barcha grant bo\'lgan event\'lari (kirish/chiqish timeline)',
+  })
+  events(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.dayEvents(current, id);
+  }
+
+  @Get('persons/:personId/stats')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary:
+      'Bitta hodim uchun to\'liq statistika (sana oralig\'i, kunlar agregati, jarima/bonus)',
+  })
+  personStats(
+    @CurrentUser() current: AuthUser,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.personStats(current, personId, { from, to });
   }
 }

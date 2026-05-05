@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { Attendance, AttendanceStats } from './types';
+import type {
+  Attendance,
+  AttendanceDayDetail,
+  AttendanceStats,
+  PersonStats,
+} from './types';
 
 export function useAttendance(opts: {
   personId?: string;
@@ -104,6 +109,41 @@ export function usePerDayStats(opts: {
       if (opts.companyId) params.companyId = opts.companyId;
       const { data } = await api.get<DayStat[]>(
         '/hikvision/attendance/per-day',
+        { params },
+      );
+      return data;
+    },
+  });
+}
+
+/** Bitta attendance kuni uchun event timeline (kirish/chiqish ro'yxati). */
+export function useAttendanceDayEvents(attendanceId: string | null) {
+  return useQuery({
+    queryKey: ['attendance-day-events', attendanceId],
+    enabled: !!attendanceId,
+    queryFn: async () => {
+      const { data } = await api.get<AttendanceDayDetail>(
+        `/hikvision/attendance/${attendanceId}/events`,
+      );
+      return data;
+    },
+  });
+}
+
+/** Bitta hodim uchun to'liq statistika (sana oralig'i bilan). */
+export function usePersonStats(
+  personId: string | null,
+  opts: { from?: string; to?: string } = {},
+) {
+  return useQuery({
+    queryKey: ['person-stats', personId, opts.from ?? '', opts.to ?? ''],
+    enabled: !!personId,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (opts.from) params.from = opts.from;
+      if (opts.to) params.to = opts.to;
+      const { data } = await api.get<PersonStats>(
+        `/hikvision/attendance/persons/${personId}/stats`,
         { params },
       );
       return data;

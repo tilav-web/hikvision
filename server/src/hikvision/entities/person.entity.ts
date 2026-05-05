@@ -21,6 +21,14 @@ export type Gender = 'male' | 'female' | 'unknown';
   unique: true,
   where: '"companyId" IS NOT NULL',
 })
+@Index('uniq_company_card', ['companyId', 'cardNo'], {
+  unique: true,
+  where: '"cardNo" IS NOT NULL AND "companyId" IS NOT NULL',
+})
+@Index('uniq_company_pin', ['companyId', 'pin'], {
+  unique: true,
+  where: '"pin" IS NOT NULL AND "companyId" IS NOT NULL',
+})
 export class PersonEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -59,9 +67,10 @@ export class PersonEntity {
   @Column({ type: 'varchar', length: 32, nullable: true })
   cardNo!: string | null;
 
-  // PIN faqat hash qilingan ko'rinishda saqlanadi (aparatga aslida yuboriladi)
-  @Column({ type: 'text', nullable: true })
-  pinHash!: string | null;
+  // 4-8 raqamli PIN. Aparatga plaintext yuboriladi (ISAPI'da boshqacha imkon yo'q).
+  // Kompaniya ichida unikal bo'lishi shart (PIN-only mode'da farqlash uchun).
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  pin!: string | null;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   phone!: string | null;

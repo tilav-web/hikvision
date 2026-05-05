@@ -1,9 +1,17 @@
-import { IsapiUserInfo } from './isapi/types';
+import { IsapiUserInfo, ListenerHostConfig } from './isapi/types';
 import { DevicePool } from './device-pool';
+import { SadpDiscovery } from './sadp';
 import { logger } from './logger';
 
 export type CommandAction =
+  | 'inspect'
+  | 'discoverDevices'
   | 'ping'
+  | 'getDeviceInfo'
+  | 'reboot'
+  | 'syncTime'
+  | 'openDoor'
+  | 'setupListener'
   | 'addUser'
   | 'updateUser'
   | 'deleteUser'
@@ -11,6 +19,7 @@ export type CommandAction =
   | 'uploadFace'
   | 'deleteFace'
   | 'addCard'
+  | 'deletePerson'
   | 'syncPerson';
 
 export interface CommandEnvelope {
@@ -28,7 +37,10 @@ export interface CommandResult {
 }
 
 export class CommandHandler {
-  constructor(private readonly pool: DevicePool) {}
+  constructor(
+    private readonly pool: DevicePool,
+    private readonly sadp: SadpDiscovery,
+  ) {}
 
   async execute(cmd: CommandEnvelope): Promise<CommandResult> {
     logger.debug(`exec ${cmd.action} on ${cmd.deviceId}`);
@@ -43,10 +55,37 @@ export class CommandHandler {
   }
 
   private async dispatch(cmd: CommandEnvelope): Promise<any> {
+    // Agent darajasidagi buyruqlar — deviceId talab qilmaydi
+    if (cmd.action === 'inspect') {
+      return this.inspect();
+    }
+    if (cmd.action === 'discoverDevices') {
+      return { devices: this.sadp.list() };
+    }
+
     const c = this.pool.clientFor(cmd.deviceId);
     switch (cmd.action) {
       case 'ping':
         return { ok: await c.ping() };
+
+      case 'getDeviceInfo':
+        return c.getDeviceInfo();
+
+      case 'reboot':
+        await c.reboot();
+        return { ok: true };
+
+      case 'syncTime':
+        await c.setTimeNow();
+        return { ok: true };
+
+      case 'openDoor':
+        await c.openDoor(cmd.payload?.doorNo ?? 1);
+        return { ok: true };
+
+      case 'setupListener':
+        await c.setupListenerHost(cmd.payload as ListenerHostConfig);
+        return { ok: true };
 
       case 'addUser':
         await c.addUser(cmd.payload as IsapiUserInfo);
@@ -82,9 +121,40 @@ export class CommandHandler {
       case 'syncPerson':
         return this.syncPerson(cmd.deviceId, cmd.payload);
 
+      case 'deletePerson':
+        await c.deleteFace(cmd.payload.employeeNo).catch(() => undefined);
+        await c.deleteUser(cmd.payload.employeeNo);
+        return { ok: true };
+
       default:
         throw new Error(`unknown action: ${(cmd as any).action}`);
     }
+  }
+
+  /** Agent ko'rayotgan barcha qurilmalar + ping holati. */
+  private async inspect(): Promise<{
+    devices: Array<{
+      id: string;
+      name?: string;
+      mode: string;
+      host: string;
+      port: number;
+      useHttps: boolean;
+      online: boolean;
+    }>;
+  }> {
+    const pings = await this.pool.pingAll();
+    const pingMap = new Map(pings.map((p) => [p.id, p.ok]));
+    const devices = this.pool.list().map((d) => ({
+      id: d.id,
+      name: d.name,
+      mode: d.mode,
+      host: d.credentials.host,
+      port: d.credentials.port,
+      useHttps: d.credentials.useHttps,
+      online: pingMap.get(d.id) ?? false,
+    }));
+    return { devices };
   }
 
   private async syncPerson(

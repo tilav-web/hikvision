@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,9 +67,27 @@ export function PersonForm({
     }
   }, [open, initial]);
 
-  const filteredDevices = devices.filter(
-    (d) => !companyId || !d.companyId || d.companyId === companyId,
+  // company_admin uchun server allaqachon faqat o'z kampaniyasi qurilmalarini qaytaradi.
+  // super_admin holatida kompaniya tanlangan bo'lsa, qat'iy filter; tanlanmagan bo'lsa
+  // qurilmalar bo'limini "avval kampaniyani tanlang" holatida qoldiramiz.
+  const showDevices = !isSuper || !!companyId;
+  const filteredDevices = useMemo(
+    () => devices.filter((d) => !isSuper || d.companyId === companyId),
+    [devices, isSuper, companyId],
   );
+  const filteredDeviceIds = useMemo(
+    () => new Set(filteredDevices.map((d) => d.id)),
+    [filteredDevices],
+  );
+
+  // Kompaniya o'zgarganda boshqa kompaniyaning qurilmalari tanlangan bo'lib qolmasin
+  useEffect(() => {
+    if (!isSuper || isEdit) return;
+    setDeviceIds((cur) => {
+      const next = cur.filter((id) => filteredDeviceIds.has(id));
+      return next.length === cur.length ? cur : next;
+    });
+  }, [filteredDeviceIds, isSuper, isEdit]);
 
   const onFile = (f: File | null) => {
     setFile(f);
@@ -166,14 +184,21 @@ export function PersonForm({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="p-no">Tabel raqami</Label>
+                  <Label htmlFor="p-no">
+                    Tabel raqami{' '}
+                    {!isEdit && (
+                      <span className="text-xs text-(--color-muted-foreground) font-normal">
+                        (bo'sh qoldirish — avto)
+                      </span>
+                    )}
+                  </Label>
                   <Input
                     id="p-no"
-                    required
+                    required={isEdit}
                     disabled={isEdit}
                     value={employeeNo}
                     onChange={(e) => setEmployeeNo(e.target.value)}
-                    placeholder="1001"
+                    placeholder={isEdit ? '' : 'Avtomatik (1001, 1002, ...)'}
                   />
                 </div>
                 <div className="space-y-2">
@@ -226,12 +251,22 @@ export function PersonForm({
                   />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <Label htmlFor="p-card">Karta raqami</Label>
+                  <Label htmlFor="p-card">
+                    Karta raqami{' '}
+                    <span className="text-xs text-(--color-muted-foreground) font-normal">
+                      (RFID/Mifare UID — kartaning fizik ID'si)
+                    </span>
+                  </Label>
                   <Input
                     id="p-card"
                     value={cardNo}
                     onChange={(e) => setCardNo(e.target.value)}
+                    placeholder="masalan 0012345678"
                   />
+                  <p className="text-xs text-(--color-muted-foreground)">
+                    Karta UID'ini kartaning orqasidan yoki Hikvision SADP tool orqali oling.
+                    Kompaniya ichida unikal bo'lishi shart — bir karta faqat bir hodimga.
+                  </p>
                 </div>
               </div>
             </div>
@@ -240,28 +275,33 @@ export function PersonForm({
           <div className="space-y-2">
             <Label>Qaysi qurilmalarga sinxronlash</Label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto rounded-md border border-(--color-border) p-3">
-              {filteredDevices.length === 0 && (
-                <p className="text-sm text-(--color-muted-foreground)">
-                  Qurilma topilmadi
+              {!showDevices ? (
+                <p className="text-sm text-(--color-muted-foreground) col-span-2">
+                  Avval kampaniyani tanlang
                 </p>
+              ) : filteredDevices.length === 0 ? (
+                <p className="text-sm text-(--color-muted-foreground)">
+                  Bu kampaniyada qurilma topilmadi
+                </p>
+              ) : (
+                filteredDevices.map((d) => (
+                  <label
+                    key={d.id}
+                    className="flex items-center gap-2 text-sm cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={deviceIds.includes(d.id)}
+                      onChange={() => toggleDevice(d.id)}
+                      className="h-4 w-4 rounded border-(--color-border)"
+                    />
+                    <span>{d.name}</span>
+                    <span className="text-xs text-(--color-muted-foreground)">
+                      {d.host}
+                    </span>
+                  </label>
+                ))
               )}
-              {filteredDevices.map((d) => (
-                <label
-                  key={d.id}
-                  className="flex items-center gap-2 text-sm cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={deviceIds.includes(d.id)}
-                    onChange={() => toggleDevice(d.id)}
-                    className="h-4 w-4 rounded border-(--color-border)"
-                  />
-                  <span>{d.name}</span>
-                  <span className="text-xs text-(--color-muted-foreground)">
-                    {d.host}
-                  </span>
-                </label>
-              ))}
             </div>
           </div>
 

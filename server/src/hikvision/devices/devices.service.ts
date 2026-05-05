@@ -34,14 +34,34 @@ export class DevicesService {
   // ───────── CRUD ─────────
 
   async create(current: AuthUser, dto: CreateDeviceDto): Promise<DeviceEntity> {
-    const companyId =
-      current.role === 'company_admin' ? current.companyId : dto.companyId;
-    if (!companyId) {
-      throw new BadRequestException('companyId shart');
-    }
+    let companyId: string | null =
+      current.role === 'company_admin'
+        ? current.companyId
+        : (dto.companyId ?? null);
 
     if (dto.agentId) {
-      await this.assertAgentInCompany(dto.agentId, companyId);
+      const agent = await this.agentRepo.findOne({
+        where: { id: dto.agentId },
+      });
+      if (!agent) {
+        throw new BadRequestException(`agent ${dto.agentId} topilmadi`);
+      }
+      if (companyId && agent.companyId && companyId !== agent.companyId) {
+        throw new BadRequestException(
+          `agent ${dto.agentId} boshqa kampaniyaga tegishli`,
+        );
+      }
+      companyId = agent.companyId ?? companyId;
+    }
+
+    if (!companyId) {
+      throw new BadRequestException('companyId yoki agentId shart');
+    }
+
+    if (current.role === 'company_admin' && companyId !== current.companyId) {
+      throw new ForbiddenException(
+        "boshqa kampaniya qurilmasiga ruxsat yo'q",
+      );
     }
 
     const useHttps = dto.useHttps ?? false;
@@ -111,7 +131,20 @@ export class DevicesService {
       if (dto.agentId === null) {
         d.agentId = null;
       } else {
-        await this.assertAgentInCompany(dto.agentId, d.companyId);
+        const agent = await this.agentRepo.findOne({
+          where: { id: dto.agentId },
+        });
+        if (!agent) {
+          throw new BadRequestException(`agent ${dto.agentId} topilmadi`);
+        }
+        if (d.companyId && agent.companyId && d.companyId !== agent.companyId) {
+          throw new BadRequestException(
+            `agent ${dto.agentId} boshqa kampaniyaga tegishli`,
+          );
+        }
+        if (!d.companyId && agent.companyId) {
+          d.companyId = agent.companyId;
+        }
         d.agentId = dto.agentId;
       }
     }
@@ -171,15 +204,42 @@ export class DevicesService {
     this.clientCache.delete(id);
   }
 
+  /**
+   * Aparat bilan ishlash uchun universal dispatcher.
+   * Agar aparatga agent biriktirilgan bo'lsa — agent socket orqali yuboramiz
+   * (agent LAN'da turib aparatga to'g'ridan-to'g'ri ulanadi).
+   * Agar agent biriktirilmagan bo'lsa — server o'zi to'g'ridan-to'g'ri ISAPI chaqiradi.
+   */
+  private async runOnDevice<T>(
+    device: DeviceEntity,
+    action: string,
+    payload: any,
+    directFn: () => Promise<T>,
+  ): Promise<T> {
+    if (device.agentId) {
+      if (!this.agentsGateway.isAgentOnline(device.agentId)) {
+        throw new BadRequestException(
+          `agent ${device.agentId} ulanmagan — buyruqni bajarib bo'lmaydi`,
+        );
+      }
+      return this.agentsGateway.sendCommand<T>(device.id, action, payload);
+    }
+    return directFn();
+  }
+
   /** Ulanishni tekshirish — deviceInfo so'rab ko'ramiz. */
   async testConnection(
     current: AuthUser,
     id: string,
   ): Promise<{ ok: boolean; info?: any; error?: string }> {
-    await this.findOne(current, id); // access check
+    const device = await this.findOne(current, id);
     try {
-      const client = await this.getClient(id);
-      const info = await client.getDeviceInfo();
+      const info = await this.runOnDevice<any>(
+        device,
+        'getDeviceInfo',
+        {},
+        async () => (await this.getClient(id)).getDeviceInfo(),
+      );
       await this.repo.update(id, {
         isOnline: true,
         lastSeenAt: new Date(),
@@ -201,22 +261,24 @@ export class DevicesService {
     current: AuthUser,
     id: string,
   ): Promise<{ ok: boolean; url: string; error?: string }> {
-    await this.findOne(current, id);
+    const device = await this.findOne(current, id);
     const baseUrl = this.cfg.get<string>('PUBLIC_BASE_URL');
     if (!baseUrl) {
       throw new BadRequestException('PUBLIC_BASE_URL .env da sozlanmagan');
     }
     const url = `${baseUrl.replace(/\/$/, '')}/api/hikvision/events/receiver`;
+    const protocolType: 'HTTP' | 'HTTPS' = url.startsWith('https') ? 'HTTPS' : 'HTTP';
+    const cfg = {
+      id: 1,
+      url,
+      protocolType,
+      parameterFormatType: 'JSON' as const,
+      addressingFormatType: 'ipaddress' as const,
+    };
 
     try {
-      const client = await this.getClient(id);
-      const protocolType = url.startsWith('https') ? 'HTTPS' : 'HTTP';
-      await client.setupListenerHost({
-        id: 1,
-        url,
-        protocolType,
-        parameterFormatType: 'JSON',
-        addressingFormatType: 'ipaddress',
+      await this.runOnDevice(device, 'setupListener', cfg, async () => {
+        await (await this.getClient(id)).setupListenerHost(cfg);
       });
       await this.repo.update(id, { listenerConfigured: true });
       return { ok: true, url };
@@ -226,21 +288,24 @@ export class DevicesService {
   }
 
   async openDoor(current: AuthUser, id: string, doorNo = 1): Promise<void> {
-    await this.findOne(current, id);
-    const client = await this.getClient(id);
-    await client.openDoor(doorNo);
+    const device = await this.findOne(current, id);
+    await this.runOnDevice(device, 'openDoor', { doorNo }, async () => {
+      await (await this.getClient(id)).openDoor(doorNo);
+    });
   }
 
   async reboot(current: AuthUser, id: string): Promise<void> {
-    await this.findOne(current, id);
-    const client = await this.getClient(id);
-    await client.reboot();
+    const device = await this.findOne(current, id);
+    await this.runOnDevice(device, 'reboot', {}, async () => {
+      await (await this.getClient(id)).reboot();
+    });
   }
 
   async syncTime(current: AuthUser, id: string): Promise<void> {
-    await this.findOne(current, id);
-    const client = await this.getClient(id);
-    await client.setTimeNow();
+    const device = await this.findOne(current, id);
+    await this.runOnDevice(device, 'syncTime', {}, async () => {
+      await (await this.getClient(id)).setTimeNow();
+    });
   }
 
   /** Aparat onlayn ekanini event keldi deb yangilash. */
@@ -261,23 +326,16 @@ export class DevicesService {
     }
   }
 
-  private async assertAgentInCompany(
-    agentId: string,
-    companyId: string | null,
-  ): Promise<void> {
-    const agent = await this.agentRepo.findOne({ where: { id: agentId } });
-    if (!agent) throw new BadRequestException(`agent ${agentId} topilmadi`);
-    if (companyId && agent.companyId && agent.companyId !== companyId) {
-      throw new BadRequestException(
-        `agent ${agentId} boshqa kampaniyaga tegishli`,
-      );
-    }
-  }
-
   private async tryEnrichDeviceInfo(id: string): Promise<void> {
     try {
-      const client = await this.getClient(id);
-      const info = await client.getDeviceInfo();
+      const device = await this.repo.findOne({ where: { id } });
+      if (!device) return;
+      const info = await this.runOnDevice<any>(
+        device,
+        'getDeviceInfo',
+        {},
+        async () => (await this.getClient(id)).getDeviceInfo(),
+      );
       await this.repo.update(id, {
         isOnline: true,
         lastSeenAt: new Date(),

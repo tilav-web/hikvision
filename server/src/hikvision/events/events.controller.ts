@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Logger,
@@ -104,23 +105,52 @@ export class EventsController {
   @ApiOperation({ summary: 'Kirish-chiqish loglarini ko\'rish' })
   list(
     @CurrentUser() current: AuthUser,
-    @Query('deviceId') deviceId?: string,
-    @Query('personId') personId?: string,
-    @Query('companyId') companyId?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('skip') skip?: string,
-    @Query('take') take?: string,
+    @Query()
+    q: {
+      deviceId?: string;
+      personId?: string;
+      companyId?: string;
+      from?: string;
+      to?: string;
+      category?: string;
+      includeUnknown?: string;
+      skip?: string;
+      take?: string;
+    },
   ) {
+    const categories = q.category
+      ? q.category.split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined;
     return this.service.list({
       current,
-      deviceId,
-      personId,
-      companyId,
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
-      skip: skip ? Number.parseInt(skip, 10) : undefined,
-      take: take ? Number.parseInt(take, 10) : undefined,
+      deviceId: q.deviceId,
+      personId: q.personId,
+      companyId: q.companyId,
+      from: q.from ? new Date(q.from) : undefined,
+      to: q.to ? new Date(q.to) : undefined,
+      categories,
+      includeUnknown: q.includeUnknown === 'true',
+      skip: q.skip ? Number.parseInt(q.skip, 10) : undefined,
+      take: q.take ? Number.parseInt(q.take, 10) : undefined,
+    });
+  }
+
+  @Delete('cleanup')
+  @Roles('super_admin', 'company_admin')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Eski hodisalarni o\'chirish (default: 90 kundan oldingilar)',
+  })
+  cleanup(
+    @CurrentUser() current: AuthUser,
+    @Query('olderThanDays') olderThanDays?: string,
+    @Query('onlyUnknown') onlyUnknown?: string,
+  ) {
+    return this.service.cleanup(current, {
+      olderThanDays: olderThanDays
+        ? Number.parseInt(olderThanDays, 10)
+        : undefined,
+      onlyUnknown: onlyUnknown === 'true',
     });
   }
 }

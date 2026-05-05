@@ -16,6 +16,17 @@ export interface PersonInput {
   autoSync?: boolean;
 }
 
+export function usePerson(id: string | null) {
+  return useQuery({
+    queryKey: ['persons', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data } = await api.get<Person>(`/hikvision/persons/${id}`);
+      return data;
+    },
+  });
+}
+
 export function usePersons(opts: { q?: string; companyId?: string } = {}) {
   return useQuery({
     queryKey: ['persons', opts.q ?? '', opts.companyId ?? 'all'],

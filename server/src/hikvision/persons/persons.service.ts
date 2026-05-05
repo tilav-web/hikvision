@@ -66,33 +66,55 @@ export class PersonsService {
       throw new BadRequestException('companyId shart');
     }
 
-    const exists = await this.personRepo.findOne({
-      where: { companyId, employeeNo: dto.employeeNo },
-    });
-    if (exists) {
-      throw new ConflictException(
-        `employeeNo ${dto.employeeNo} ushbu kampaniyada band`,
-      );
+    const userProvided = !!dto.employeeNo?.trim();
+
+    if (userProvided) {
+      const exists = await this.personRepo.findOne({
+        where: { companyId, employeeNo: dto.employeeNo!.trim() },
+      });
+      if (exists) {
+        throw new ConflictException(
+          `employeeNo ${dto.employeeNo} ushbu kampaniyada band`,
+        );
+      }
     }
 
-    const person = this.personRepo.create({
+    if (dto.cardNo?.trim()) {
+      await this.assertCardNoFree(companyId, dto.cardNo.trim());
+    }
+
+    if (dto.pin?.trim()) {
+      await this.assertPinFree(companyId, dto.pin.trim());
+    }
+
+    const baseFields = {
       companyId,
-      employeeNo: dto.employeeNo,
       name: dto.name,
       userType: dto.userType ?? 'normal',
       gender: dto.gender ?? 'unknown',
       beginTime: dto.beginTime ? new Date(dto.beginTime) : null,
       endTime: dto.endTime ? new Date(dto.endTime) : null,
       cardNo: dto.cardNo ?? null,
-      pinHash: dto.pin ?? null,
+      pin: dto.pin ?? null,
       phone: dto.phone ?? null,
       email: dto.email ?? null,
       externalUserId: dto.externalUserId ?? null,
       scheduleId: dto.scheduleId ?? null,
       position: dto.position ?? null,
       baseSalary: dto.baseSalary ?? null,
-    });
-    const saved = await this.personRepo.save(person);
+    };
+
+    // Avto-generate yoki user kiritgan qiymat bilan saqlaymiz.
+    // Bir vaqtda 2 admin qo'shsa unique constraint bilan konflikt bo'lishi mumkin —
+    // shu uchun retry qilamiz (faqat avto-generate rejimida).
+    const saved = userProvided
+      ? await this.personRepo.save(
+          this.personRepo.create({
+            ...baseFields,
+            employeeNo: dto.employeeNo!.trim(),
+          }),
+        )
+      : await this.savePersonWithAutoEmployeeNo(companyId, baseFields);
 
     const targetDevices = await this.resolveTargetDevices(companyId, dto.deviceIds);
     if (targetDevices.length) {
@@ -107,6 +129,93 @@ export class PersonsService {
       );
     }
     return saved;
+  }
+
+  /**
+   * Avto-generatsiya: kampaniya ichidagi eng katta raqamli employeeNo + 1.
+   * Race condition'ni unique constraint xatolikini ushlash bilan hal qilamiz.
+   */
+  private async savePersonWithAutoEmployeeNo(
+    companyId: string,
+    baseFields: Record<string, any>,
+  ): Promise<PersonEntity> {
+    const MAX_ATTEMPTS = 5;
+    let lastErr: unknown;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const employeeNo = await this.nextEmployeeNo(companyId);
+      try {
+        return await this.personRepo.save(
+          this.personRepo.create({ ...baseFields, employeeNo }),
+        );
+      } catch (e) {
+        // PostgreSQL unique violation → retry
+        const pgError = e as { code?: string; message?: string };
+        if (pgError?.code === '23505') {
+          lastErr = e;
+          this.logger.warn(
+            `employeeNo race conflict, retry attempt ${attempt + 1}/${MAX_ATTEMPTS}`,
+          );
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastErr ?? new Error('employeeNo avto-generatsiya muvaffaqiyatsiz');
+  }
+
+  /**
+   * Kampaniya ichida shu cardNo bo'shligini tekshirish (CRUD'da).
+   * `excludePersonId` — update paytida o'z yozuvini hisobdan tashqarida qoldirish uchun.
+   */
+  private async assertCardNoFree(
+    companyId: string,
+    cardNo: string,
+    excludePersonId?: string,
+  ): Promise<void> {
+    const existing = await this.personRepo.findOne({
+      where: { companyId, cardNo },
+    });
+    if (existing && existing.id !== excludePersonId) {
+      throw new ConflictException(
+        `Karta raqami ${cardNo} ushbu kampaniyada boshqa hodimga (${existing.name}) biriktirilgan`,
+      );
+    }
+  }
+
+  /**
+   * Kampaniya ichida shu PIN bo'shligini tekshirish.
+   * `excludePersonId` — update paytida o'z yozuvini hisobdan tashqarida qoldirish uchun.
+   */
+  private async assertPinFree(
+    companyId: string,
+    pin: string,
+    excludePersonId?: string,
+  ): Promise<void> {
+    const existing = await this.personRepo.findOne({
+      where: { companyId, pin },
+    });
+    if (existing && existing.id !== excludePersonId) {
+      throw new ConflictException(
+        `PIN ${pin} ushbu kampaniyada boshqa hodimga (${existing.name}) biriktirilgan`,
+      );
+    }
+  }
+
+  /**
+   * Kampaniya ichidagi keyingi raqamli employeeNo'ni topadi.
+   * Faqat sof raqamli (^[0-9]+$) employeeNo'larni hisoblaydi — alfanumerik (masalan "AAA-23")
+   * qiymatlar e'tiborsiz qoldiriladi. Default boshlang'ich: 1001.
+   */
+  async nextEmployeeNo(companyId: string): Promise<string> {
+    const row: { max: string | null } | undefined = await this.personRepo
+      .createQueryBuilder('p')
+      .select(`COALESCE(MAX(CAST(p."employeeNo" AS BIGINT)), 1000)`, 'max')
+      .where('p."companyId" = :cid', { cid: companyId })
+      .andWhere(`p."employeeNo" ~ '^[0-9]+$'`)
+      .getRawOne();
+    const maxNum = row?.max ? Number.parseInt(String(row.max), 10) : 1000;
+    return String(maxNum + 1);
   }
 
   async findAll(
@@ -162,6 +271,21 @@ export class PersonsService {
     dto: UpdatePersonDto,
   ): Promise<PersonEntity> {
     const p = await this.findOne(current, id);
+
+    if (dto.cardNo !== undefined && dto.cardNo !== p.cardNo) {
+      const trimmed = dto.cardNo?.trim();
+      if (trimmed && p.companyId) {
+        await this.assertCardNoFree(p.companyId, trimmed, p.id);
+      }
+    }
+
+    if (dto.pin !== undefined && dto.pin !== p.pin) {
+      const trimmed = dto.pin?.trim();
+      if (trimmed && p.companyId) {
+        await this.assertPinFree(p.companyId, trimmed, p.id);
+      }
+    }
+
     Object.assign(p, {
       name: dto.name ?? p.name,
       userType: dto.userType ?? p.userType,
@@ -169,7 +293,7 @@ export class PersonsService {
       beginTime: dto.beginTime ? new Date(dto.beginTime) : p.beginTime,
       endTime: dto.endTime ? new Date(dto.endTime) : p.endTime,
       cardNo: dto.cardNo ?? p.cardNo,
-      pinHash: dto.pin ?? p.pinHash,
+      pin: dto.pin ?? p.pin,
       phone: dto.phone ?? p.phone,
       email: dto.email ?? p.email,
       externalUserId: dto.externalUserId ?? p.externalUserId,
@@ -207,9 +331,7 @@ export class PersonsService {
 
     for (const link of p.deviceLinks ?? []) {
       try {
-        const client = await this.devicesService.getClient(link.deviceId);
-        await client.deleteUser(p.employeeNo).catch(() => undefined);
-        await client.deleteFace(p.employeeNo).catch(() => undefined);
+        await this.deletePersonFromDevice(link.deviceId, p.employeeNo);
         removedFrom.push(link.deviceId);
       } catch (e) {
         failures.push(`${link.deviceId}: ${(e as Error).message}`);
@@ -371,10 +493,29 @@ export class PersonsService {
     deviceId: string,
   ): Promise<void> {
     const p = await this.findOne(current, personId);
-    const client = await this.devicesService.getClient(deviceId);
-    await client.deleteFace(p.employeeNo).catch(() => undefined);
-    await client.deleteUser(p.employeeNo);
+    await this.deletePersonFromDevice(deviceId, p.employeeNo);
     await this.linkRepo.delete({ personId: p.id, deviceId });
+  }
+
+  private async deletePersonFromDevice(
+    deviceId: string,
+    employeeNo: string,
+  ): Promise<void> {
+    const device = await this.deviceRepo.findOne({ where: { id: deviceId } });
+    if (!device) throw new Error(`device ${deviceId} topilmadi`);
+
+    if (device.agentId && this.agentsGateway.isAgentOnline(device.agentId)) {
+      await this.agentsGateway.sendCommand(deviceId, 'deletePerson', {
+        employeeNo,
+      });
+      return;
+    }
+    if (device.agentId) {
+      throw new Error(`agent ${device.agentId} ulanmagan`);
+    }
+    const client = await this.devicesService.getClient(deviceId);
+    await client.deleteFace(employeeNo).catch(() => undefined);
+    await client.deleteUser(employeeNo);
   }
 
   // ───────── ichki ─────────
@@ -420,7 +561,7 @@ export class PersonsService {
       Valid: { enable: true, beginTime: begin, endTime: end },
       doorRight: '1',
       RightPlan: [{ doorNo: 1, planTemplateNo: '1' }],
-      ...(p.pinHash ? { password: p.pinHash } : {}),
+      ...(p.pin ? { password: p.pin } : {}),
     };
   }
 }

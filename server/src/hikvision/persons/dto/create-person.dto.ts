@@ -41,11 +41,16 @@ export class CreatePersonDto {
   @IsUUID()
   companyId?: string;
 
-  @ApiProperty({ example: '1001', description: 'Aparatdagi unikal user ID (kampaniya ichida unikal)' })
+  @ApiPropertyOptional({
+    example: '1001',
+    description:
+      "Aparatdagi unikal user ID (kampaniya ichida unikal). Bo'sh qoldirilsa server avto-generate qiladi (1001, 1002, ...).",
+  })
+  @IsOptional()
   @IsString()
   @Length(1, 32)
   @Matches(/^[A-Za-z0-9_-]+$/, { message: 'employeeNo faqat alfanumeric, _ va -' })
-  employeeNo!: string;
+  employeeNo?: string;
 
   @ApiProperty({ example: 'Ali Valiyev' })
   @IsString()

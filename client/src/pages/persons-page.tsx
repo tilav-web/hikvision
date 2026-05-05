@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, Pencil, Trash2, RefreshCw, Search, IdCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
@@ -28,6 +29,7 @@ import {
   usePersons,
   useSyncPerson,
   useUpdatePerson,
+  useUploadFace,
 } from '@/api/persons';
 import { useDevices } from '@/api/devices';
 import { useCompanies } from '@/api/companies';
@@ -50,6 +52,7 @@ export function PersonsPage() {
   const { data: devices } = useDevices();
   const create = useCreatePerson();
   const update = useUpdatePerson();
+  const uploadFace = useUploadFace();
   const remove = useDeletePerson();
   const sync = useSyncPerson();
 
@@ -59,19 +62,29 @@ export function PersonsPage() {
 
   const items = useMemo(() => data?.items ?? [], [data]);
 
-  const onSubmit = (dto: any, file?: File) => {
+  const onSubmit = async (dto: any, file?: File) => {
     if (editing) {
-      update.mutate(
-        { id: editing.id, dto },
-        {
-          onSuccess: () => {
-            toast.success('Hodim yangilandi');
-            setFormOpen(false);
-            setEditing(null);
-          },
-          onError: (e) => toast.error(getApiErrorMessage(e)),
-        },
-      );
+      try {
+        await update.mutateAsync({ id: editing.id, dto });
+        if (file) {
+          await uploadFace.mutateAsync({ id: editing.id, file });
+        }
+        // Tahrir natijasini qurilmalarga yuboramiz (yuz, ism, karta o'zgargan bo'lishi mumkin)
+        const res = await sync.mutateAsync(editing.id);
+        if (res.failed.length === 0) {
+          toast.success(
+            `Hodim yangilandi va ${res.success.length} ta qurilmaga sinxronlandi`,
+          );
+        } else {
+          toast.warning(
+            `Yangilandi · ${res.success.length} OK, ${res.failed.length} xato`,
+          );
+        }
+        setFormOpen(false);
+        setEditing(null);
+      } catch (e) {
+        toast.error(getApiErrorMessage(e));
+      }
     } else {
       create.mutate(
         { dto, file },
@@ -166,11 +179,18 @@ export function PersonsPage() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
-                          <AvatarImage src={`/uploads/faces/${p.id}.jpg`} alt={p.name} />
+                          {p.faceImagePath && (
+                            <AvatarImage src={`/uploads/faces/${p.id}.jpg`} alt={p.name} />
+                          )}
                           <AvatarFallback>{initials(p.name) || <IdCard className="h-4 w-4" />}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="font-medium">{p.name}</div>
+                          <Link
+                            to={`/persons/${p.id}`}
+                            className="font-medium hover:underline"
+                          >
+                            {p.name}
+                          </Link>
                           {p.email && (
                             <div className="text-xs text-(--color-muted-foreground)">
                               {p.email}

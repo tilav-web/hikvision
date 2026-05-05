@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { AttendanceEntity } from '../entities/attendance.entity';
@@ -83,6 +88,61 @@ export class AttendanceService {
   }
 
   /**
+   * Bitta attendance kunining timeline'i — barcha grant event'lari, har biri uchun
+   * direction ko'rsatilgan. Davomat sahifasidagi accordion uchun.
+   */
+  async dayEvents(
+    current: AuthUser,
+    attendanceId: string,
+  ): Promise<{
+    attendance: AttendanceEntity;
+    events: Array<{
+      id: string;
+      capturedAt: Date;
+      direction: 'in' | 'out';
+      directionSource: string | null;
+      verifyMode: string;
+      deviceId: string;
+      deviceName: string;
+    }>;
+  }> {
+    const row = await this.repo.findOne({
+      where: { id: attendanceId },
+      relations: { person: true },
+    });
+    if (!row) {
+      throw new NotFoundException('attendance topilmadi');
+    }
+    if (current.role === 'company_admin' && row.companyId !== current.companyId) {
+      throw new ForbiddenException('boshqa kampaniya yozuviga ruxsat yo\'q');
+    }
+
+    const dayStart = new Date(row.date + 'T00:00:00');
+    const dayEnd = new Date(row.date + 'T23:59:59.999');
+    const raw = await this.eventRepo.find({
+      where: {
+        personId: row.personId,
+        capturedAt: Between(dayStart, dayEnd),
+        category: 'accessGranted' as any,
+      },
+      relations: { device: true },
+      order: { capturedAt: 'ASC' },
+    });
+    const directed = inferDirections(raw);
+
+    const events = raw.map((e, idx) => ({
+      id: e.id,
+      capturedAt: e.capturedAt,
+      direction: directed[idx]?.direction ?? 'in',
+      directionSource: e.directionSource,
+      verifyMode: e.verifyMode,
+      deviceId: e.deviceId,
+      deviceName: e.device?.name ?? '—',
+    }));
+    return { attendance: row, events };
+  }
+
+  /**
    * Yangi event keldi → kunlik attendance'ni qaytadan to'liq hisoblaymiz.
    * Lunch logikasi shu yerda qo'llaniladi.
    */
@@ -97,13 +157,24 @@ export class AttendanceService {
 
     const captured = new Date(event.capturedAt);
     const date = dateString(captured);
+    await this.recomputeDay(event.companyId, person, date);
+  }
+
+  /**
+   * Bitta hodim uchun bitta kunni qaytadan hisoblash.
+   * ingestEvent va manual recompute uchun ishlatiladi.
+   */
+  async recomputeDay(
+    companyId: string,
+    person: PersonEntity,
+    date: string,
+  ): Promise<AttendanceEntity> {
     const dayStart = new Date(date + 'T00:00:00');
     const dayEnd = new Date(date + 'T23:59:59.999');
 
-    const isHoliday = await this.holidays.isHoliday(event.companyId, date);
+    const isHoliday = await this.holidays.isHoliday(companyId, date);
     const isOnLeave = await this.vacations.isOnLeave(person.id, date);
 
-    // Shu kunning barcha grant bo'lgan eventlari (vaqt bo'yicha)
     const allEvents = await this.eventRepo.find({
       where: {
         personId: person.id,
@@ -113,14 +184,34 @@ export class AttendanceService {
       order: { capturedAt: 'ASC' },
     });
 
-    const sorted = inferDirections(allEvents);
+    const directed = inferDirections(allEvents);
+    const enterCount = directed.filter((e) => e.direction === 'in').length;
+    const exitCount = directed.filter((e) => e.direction === 'out').length;
+
+    const sched = person.scheduleId
+      ? await this.scheduleRepo.findOne({ where: { id: person.scheduleId } })
+      : null;
+    const expectedStart = sched ? parseHHMM(sched.startTime, dayStart) : null;
+    const expectedEnd = sched ? parseHHMM(sched.endTime, dayStart) : null;
+
+    const today = new Date();
+    const isToday = dateString(today) === date;
+    const isPast = dayEnd < today;
+
+    // 'in' - 'out' juftliklarini quramiz va yopilmagan oxirgi 'in' uchun qaror qabul qilamiz
+    const { intervals, currentlyInside } = pairIntoIntervals(directed, {
+      isToday,
+      isPast,
+      now: today,
+      autoCloseAt: expectedEnd ?? dayEnd,
+    });
 
     let row = await this.repo.findOne({
       where: { personId: person.id, date },
     });
     if (!row) {
       row = this.repo.create({
-        companyId: event.companyId,
+        companyId,
         personId: person.id,
         scheduleId: person.scheduleId,
         date,
@@ -130,74 +221,100 @@ export class AttendanceService {
         earlyLeaveMinutes: 0,
         lunchOverstayMinutes: 0,
         workedMinutes: 0,
+        overtimeMinutes: 0,
+        earlyArrivalMinutes: 0,
+        enterCount: 0,
+        exitCount: 0,
         status: 'absent',
       });
     }
 
-    const firstIn = sorted.find((e) => e.direction === 'in');
-    const lastOut = [...sorted].reverse().find((e) => e.direction === 'out');
-    row.firstInAt = firstIn ? new Date(firstIn.capturedAt) : null;
-    row.lastOutAt = lastOut ? new Date(lastOut.capturedAt) : null;
+    row.enterCount = enterCount;
+    row.exitCount = exitCount;
+    row.firstInAt = intervals.length > 0 ? intervals[0].in : null;
+    // lastOutAt: agar hodim hali ichkarida bo'lsa null, aks holda oxirgi yopilgan interval'ning out vaqti
+    row.lastOutAt = currentlyInside
+      ? null
+      : intervals.length > 0
+        ? intervals[intervals.length - 1].out
+        : null;
 
-    const sched = person.scheduleId
-      ? await this.scheduleRepo.findOne({ where: { id: person.scheduleId } })
-      : null;
+    // Jami ish vaqti = barcha juftliklarning yig'indisi
+    const totalPaired = intervals.reduce(
+      (s, iv) => s + Math.max(0, diffMinutes(iv.out, iv.in)),
+      0,
+    );
 
-    if (sched && row.firstInAt) {
-      const expectedStart = parseHHMM(sched.startTime, dayStart);
-      const expectedEnd = parseHHMM(sched.endTime, dayStart);
-
-      const lateRaw = diffMinutes(row.firstInAt, expectedStart);
-      row.lateMinutes = Math.max(0, lateRaw - sched.graceMinutes);
-
-      if (row.lastOutAt) {
-        const earlyRaw = diffMinutes(expectedEnd, row.lastOutAt);
-        row.earlyLeaveMinutes = Math.max(0, earlyRaw);
-      } else {
-        row.earlyLeaveMinutes = 0;
-      }
-
+    // Tushlik overstay'ini eski mantiq bilan hisoblaymiz
+    if (sched && expectedStart && expectedEnd) {
       row.lunchOverstayMinutes = computeLunchOverstay(
-        sorted,
+        directed,
         sched,
         expectedStart,
         expectedEnd,
       );
+
+      if (row.firstInAt) {
+        const lateRaw = diffMinutes(row.firstInAt, expectedStart);
+        row.lateMinutes = Math.max(0, lateRaw - sched.graceMinutes);
+
+        const earlyArrivalRaw = diffMinutes(expectedStart, row.firstInAt);
+        row.earlyArrivalMinutes = Math.max(0, earlyArrivalRaw);
+      } else {
+        row.lateMinutes = 0;
+        row.earlyArrivalMinutes = 0;
+      }
+
+      if (row.lastOutAt) {
+        const earlyRaw = diffMinutes(expectedEnd, row.lastOutAt);
+        row.earlyLeaveMinutes = Math.max(0, earlyRaw);
+
+        const overtimeRaw = diffMinutes(row.lastOutAt, expectedEnd);
+        row.overtimeMinutes = Math.max(0, overtimeRaw);
+      } else {
+        row.earlyLeaveMinutes = 0;
+        row.overtimeMinutes = 0;
+      }
     } else {
       row.lateMinutes = 0;
       row.earlyLeaveMinutes = 0;
       row.lunchOverstayMinutes = 0;
+      row.overtimeMinutes = 0;
+      row.earlyArrivalMinutes = 0;
     }
 
-    if (row.firstInAt && row.lastOutAt) {
-      row.workedMinutes = Math.max(
-        0,
-        diffMinutes(row.lastOutAt, row.firstInAt) - row.lunchOverstayMinutes,
-      );
-    } else {
-      row.workedMinutes = 0;
-    }
+    row.workedMinutes = Math.max(0, totalPaired - row.lunchOverstayMinutes);
 
-    row.status = this.computeStatus(row, { isHoliday, isOnLeave });
+    row.status = this.computeStatus(row, {
+      isHoliday,
+      isOnLeave,
+      currentlyInside,
+    });
     const saved = await this.repo.save(row);
 
-    // Bayram yoki ta'tilda bo'lsa avtomatik jarima yozilmaydi
     if (sched && !isHoliday && !isOnLeave) {
       await this.upsertAutoPenalty(saved, sched);
     } else {
       await this.penaltyRepo.delete({ attendanceId: saved.id });
     }
+    return saved;
   }
 
   private computeStatus(
     row: AttendanceEntity,
-    flags: { isHoliday: boolean; isOnLeave: boolean },
+    flags: {
+      isHoliday: boolean;
+      isOnLeave: boolean;
+      currentlyInside: boolean;
+    },
   ): AttendanceEntity['status'] {
     if (flags.isHoliday) return 'holiday';
     if (flags.isOnLeave) return 'leave';
     if (!row.firstInAt) return 'absent';
-    if (row.lateMinutes > 0) return 'late';
+    if (flags.currentlyInside) return 'currently_inside';
     if (!row.lastOutAt) return 'partial';
+    if (row.lateMinutes > 0) return 'late';
+    if (row.overtimeMinutes > 0) return 'overtime';
     return 'present';
   }
 
@@ -277,6 +394,108 @@ export class AttendanceService {
         );
       }
     }
+  }
+
+  /**
+   * Bitta hodim uchun to'liq statistika (sana oralig'i bo'yicha):
+   *  - Asosiy hisoblar: kunlar (present/late/absent/holiday/leave/...)
+   *  - Daqiqa yig'indilari: workedMinutes, lateMinutes, earlyLeaveMinutes,
+   *    overtimeMinutes, earlyArrivalMinutes, lunchOverstayMinutes
+   *  - Jarima/bonus jami
+   *  - Kunlar bo'yicha breakdown
+   */
+  async personStats(
+    current: AuthUser,
+    personId: string,
+    opts: { from?: string; to?: string } = {},
+  ): Promise<{
+    person: { id: string; name: string; employeeNo: string; companyId: string };
+    range: { from: string; to: string };
+    counts: {
+      total: number;
+      present: number;
+      late: number;
+      absent: number;
+      partial: number;
+      leave: number;
+      holiday: number;
+      currentlyInside: number;
+      overtime: number;
+    };
+    minutes: {
+      worked: number;
+      late: number;
+      earlyLeave: number;
+      overtime: number;
+      earlyArrival: number;
+      lunchOverstay: number;
+    };
+    money: { totalPenalty: number; totalBonus: number };
+    rows: AttendanceEntity[];
+  }> {
+    const person = await this.personRepo.findOne({ where: { id: personId } });
+    if (!person) throw new NotFoundException('hodim topilmadi');
+    if (
+      current.role === 'company_admin' &&
+      person.companyId !== current.companyId
+    ) {
+      throw new ForbiddenException('boshqa kampaniya hodimiga ruxsat yo\'q');
+    }
+
+    const today = new Date();
+    const defaultFrom = new Date(today.getFullYear(), today.getMonth(), 1);
+    const from = opts.from ?? dateString(defaultFrom);
+    const to = opts.to ?? dateString(today);
+
+    const rows = await this.repo.find({
+      where: { personId, date: Between(from, to) },
+      order: { date: 'ASC' },
+    });
+
+    const counts = {
+      total: rows.length,
+      present: rows.filter((r) => r.status === 'present').length,
+      late: rows.filter((r) => r.status === 'late').length,
+      absent: rows.filter((r) => r.status === 'absent').length,
+      partial: rows.filter((r) => r.status === 'partial').length,
+      leave: rows.filter((r) => r.status === 'leave').length,
+      holiday: rows.filter((r) => r.status === 'holiday').length,
+      currentlyInside: rows.filter((r) => r.status === 'currently_inside').length,
+      overtime: rows.filter((r) => r.status === 'overtime').length,
+    };
+    const minutes = {
+      worked: rows.reduce((s, r) => s + r.workedMinutes, 0),
+      late: rows.reduce((s, r) => s + r.lateMinutes, 0),
+      earlyLeave: rows.reduce((s, r) => s + r.earlyLeaveMinutes, 0),
+      overtime: rows.reduce((s, r) => s + r.overtimeMinutes, 0),
+      earlyArrival: rows.reduce((s, r) => s + r.earlyArrivalMinutes, 0),
+      lunchOverstay: rows.reduce((s, r) => s + r.lunchOverstayMinutes, 0),
+    };
+
+    const penalties = await this.penaltyRepo.find({
+      where: { personId, date: Between(from, to) },
+    });
+    let totalPenalty = 0;
+    let totalBonus = 0;
+    for (const p of penalties) {
+      const amt = parseFloat(p.amount as unknown as string) || 0;
+      if (p.type === 'penalty') totalPenalty += amt;
+      else if (p.type === 'bonus') totalBonus += amt;
+    }
+
+    return {
+      person: {
+        id: person.id,
+        name: person.name,
+        employeeNo: person.employeeNo,
+        companyId: person.companyId!,
+      },
+      range: { from, to },
+      counts,
+      minutes,
+      money: { totalPenalty, totalBonus },
+      rows,
+    };
   }
 
   async stats(opts: {
@@ -440,6 +659,64 @@ export class AttendanceService {
 interface DirectedEvent {
   capturedAt: Date | string;
   direction: 'in' | 'out';
+}
+
+interface PairedInterval {
+  in: Date;
+  out: Date;
+  /** Hali yopilmagan (hodim ichkarida, kun bugun) — `out` joriy vaqt sifatida o'rnatilgan */
+  isOpen?: boolean;
+  /** Avtomatik yopilgan (kun o'tgan, oxirgi 'in' ga 'out' kelmagan) — `out` workEnd ga teng */
+  isAutoClosed?: boolean;
+}
+
+/**
+ * Eventlarni in→out juftliklariga ajratadi.
+ * Yopilmagan oxirgi `in` uchun:
+ *  - bugun va vaqt hali tugamagan bo'lsa — `now` bilan yopiladi (currentlyInside=true)
+ *  - kun o'tgan bo'lsa — `autoCloseAt` (odatda workEnd) bilan yopiladi
+ */
+function pairIntoIntervals(
+  events: DirectedEvent[],
+  opts: {
+    isToday: boolean;
+    isPast: boolean;
+    now: Date;
+    autoCloseAt: Date;
+  },
+): { intervals: PairedInterval[]; currentlyInside: boolean } {
+  const intervals: PairedInterval[] = [];
+  let currentIn: Date | null = null;
+
+  for (const e of events) {
+    const t = e.capturedAt instanceof Date ? e.capturedAt : new Date(e.capturedAt);
+    if (e.direction === 'in') {
+      if (currentIn === null) {
+        currentIn = t;
+      } else {
+        // Ketma-ket ikki 'in' — anomaliya. Birinchisini saqlab, ikkinchisini e'tiborsiz qoldiramiz.
+      }
+    } else if (currentIn !== null) {
+      intervals.push({ in: currentIn, out: t });
+      currentIn = null;
+    }
+  }
+
+  let currentlyInside = false;
+  if (currentIn !== null) {
+    if (opts.isToday) {
+      // Bugun, hodim hali ichkarida — joriy vaqtgacha hisoblaymiz, lekin lastOut yo'q
+      intervals.push({ in: currentIn, out: opts.now, isOpen: true });
+      currentlyInside = true;
+    } else if (opts.isPast) {
+      // O'tgan kun, oxirgi 'in' yopilmagan — workEnd da auto-yopamiz
+      const closeAt =
+        opts.autoCloseAt > currentIn ? opts.autoCloseAt : currentIn;
+      intervals.push({ in: currentIn, out: closeAt, isAutoClosed: true });
+    }
+  }
+
+  return { intervals, currentlyInside };
 }
 
 function inferDirections(events: AccessEventEntity[]): DirectedEvent[] {

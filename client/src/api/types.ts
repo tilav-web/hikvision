@@ -125,7 +125,9 @@ export type AttendanceStatus =
   | 'absent'
   | 'leave'
   | 'partial'
-  | 'holiday';
+  | 'holiday'
+  | 'currently_inside'
+  | 'overtime';
 
 export interface Attendance {
   id: string;
@@ -139,8 +141,53 @@ export interface Attendance {
   earlyLeaveMinutes: number;
   lunchOverstayMinutes: number;
   workedMinutes: number;
+  overtimeMinutes: number;
+  earlyArrivalMinutes: number;
+  enterCount: number;
+  exitCount: number;
   status: AttendanceStatus;
   person?: Person;
+}
+
+export interface AttendanceDayEvent {
+  id: string;
+  capturedAt: string;
+  direction: 'in' | 'out';
+  directionSource: 'device_mode' | 'button' | 'manual' | null;
+  verifyMode: string;
+  deviceId: string;
+  deviceName: string;
+}
+
+export interface AttendanceDayDetail {
+  attendance: Attendance;
+  events: AttendanceDayEvent[];
+}
+
+export interface PersonStats {
+  person: { id: string; name: string; employeeNo: string; companyId: string };
+  range: { from: string; to: string };
+  counts: {
+    total: number;
+    present: number;
+    late: number;
+    absent: number;
+    partial: number;
+    leave: number;
+    holiday: number;
+    currentlyInside: number;
+    overtime: number;
+  };
+  minutes: {
+    worked: number;
+    late: number;
+    earlyLeave: number;
+    overtime: number;
+    earlyArrival: number;
+    lunchOverstay: number;
+  };
+  money: { totalPenalty: number; totalBonus: number };
+  rows: Attendance[];
 }
 
 export type PenaltyType = 'penalty' | 'bonus';

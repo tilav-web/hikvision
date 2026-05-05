@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import { Between, In, Not, Repository } from 'typeorm';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { AccessEventEntity } from '../entities/access-event.entity';
@@ -79,8 +79,9 @@ export class EventsService {
       pictureUrl = await this.savePicture(opts.picture);
     }
 
-    // Qurilma rejimidan kelib chiqib, kirish/chiqish yo'nalishini aniqlaymiz.
-    // 'both' rejimida — yo'nalish hodim tugmadan keyin keladi (alohida event'da).
+    // Yo'nalishni aniqlash:
+    //  - device.mode 'entry'/'exit' bo'lsa — qurilma rejimidan;
+    //  - 'both' bo'lsa — qurilmadan kelgan tugma signali (parser extract qilgan)
     let direction: 'in' | 'out' | null = null;
     let directionSource: 'device_mode' | 'button' | 'manual' | null = null;
     if (device.mode === 'entry') {
@@ -89,6 +90,9 @@ export class EventsService {
     } else if (device.mode === 'exit') {
       direction = 'out';
       directionSource = 'device_mode';
+    } else if (parsed.direction) {
+      direction = parsed.direction;
+      directionSource = 'button';
     }
 
     const event = this.eventRepo.create({
@@ -143,6 +147,10 @@ export class EventsService {
     companyId?: string;
     from?: Date;
     to?: Date;
+    /** Aniq kategoriyalar bo'yicha filter (bir nechta bo'lsa OR) */
+    categories?: string[];
+    /** Default'ga ko'ra 'unknown' yashiradi (UI uchun shovqin kam) */
+    includeUnknown?: boolean;
     skip?: number;
     take?: number;
   }) {
@@ -156,6 +164,12 @@ export class EventsService {
     if (opts.personId) where.personId = opts.personId;
     if (opts.from && opts.to) where.capturedAt = Between(opts.from, opts.to);
 
+    if (opts.categories && opts.categories.length > 0) {
+      where.category = In(opts.categories);
+    } else if (!opts.includeUnknown) {
+      where.category = Not('unknown' as any);
+    }
+
     const [items, total] = await this.eventRepo.findAndCount({
       where,
       order: { capturedAt: 'DESC' },
@@ -164,6 +178,38 @@ export class EventsService {
       relations: { device: true, person: true },
     });
     return { items, total };
+  }
+
+  /**
+   * Eski hodisalarni o'chirish (admin yoki cron orqali).
+   * `olderThanDays` belgilangan kunlardan eski yozuvlarni o'chiradi.
+   */
+  async cleanup(
+    current: AuthUser,
+    opts: { olderThanDays?: number; onlyUnknown?: boolean } = {},
+  ): Promise<{ deleted: number; cutoff: string }> {
+    const days = Math.max(1, opts.olderThanDays ?? 90);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+
+    const qb = this.eventRepo
+      .createQueryBuilder()
+      .delete()
+      .where('"capturedAt" < :cutoff', { cutoff });
+
+    if (current.role === 'company_admin') {
+      qb.andWhere('"companyId" = :cid', { cid: current.companyId });
+    }
+    if (opts.onlyUnknown) {
+      qb.andWhere('category = :cat', { cat: 'unknown' });
+    }
+
+    const res = await qb.execute();
+    const deleted = res.affected ?? 0;
+    this.logger.log(
+      `🧹 cleanup: ${deleted} ta hodisa o'chirildi (cutoff: ${cutoff.toISOString()}, onlyUnknown=${!!opts.onlyUnknown})`,
+    );
+    return { deleted, cutoff: cutoff.toISOString() };
   }
 
   // ───────── ichki ─────────

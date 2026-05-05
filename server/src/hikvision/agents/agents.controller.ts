@@ -52,6 +52,32 @@ export class AgentsController {
     return this.service.findOne(current, id);
   }
 
+  @Get(':id/inspect')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary:
+      'Agent runtime holatini tekshirish: ko\'rayotgan qurilmalar + ping. DB bilan solishtirib qaytariladi.',
+  })
+  inspect(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.inspect(current, id);
+  }
+
+  @Get(':id/discovered')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary:
+      'Agent SADP orqali aniqlagan qurilmalar (DB\'dagi qurilmalar bilan solishtirilib, hali qo\'shilmaganlari ham belgilanadi)',
+  })
+  discovered(
+    @CurrentUser() current: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.discovered(current, id);
+  }
+
   @Patch(':id')
   @Roles('super_admin', 'company_admin')
   update(
