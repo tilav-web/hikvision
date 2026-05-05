@@ -77,38 +77,5 @@ export function useOpenDoor() {
   });
 }
 
-// ─────── Kamera stream (session) ───────
-//
-// Lifecycle: client modal ochilganda startStream chaqiradi → keyin har fps
-// intervalda fetchStreamFrame → modal yopilganda stopStream.
-// Multi-viewer: server hisoblagichi 0'ga tushganda agent stream'ni to'xtatadi.
-
-export async function startDeviceStream(
-  deviceId: string,
-  fps = 3,
-): Promise<{ ok: true; viewers: number; fps: number }> {
-  const { data } = await api.post<{ ok: true; viewers: number; fps: number }>(
-    `/hikvision/devices/${deviceId}/stream/start`,
-    null,
-    { params: { fps } },
-  );
-  return data;
-}
-
-export async function stopDeviceStream(
-  deviceId: string,
-): Promise<{ ok: true; viewers: number }> {
-  const { data } = await api.post<{ ok: true; viewers: number }>(
-    `/hikvision/devices/${deviceId}/stream/stop`,
-  );
-  return data;
-}
-
-/** Agent keshidan oxirgi JPEG kadr. Sessiya yo'q bo'lsa 404. */
-export async function fetchStreamFrame(deviceId: string): Promise<Blob> {
-  const { data } = await api.get<Blob>(
-    `/hikvision/devices/${deviceId}/stream/frame`,
-    { responseType: 'blob' },
-  );
-  return data;
-}
+// Kamera stream'i WebSocket orqali ishlaydi (use-device-stream hook).
+// HTTP API'da stream funksiyalari yo'q — events socket'i orqali real-time push.

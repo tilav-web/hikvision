@@ -3,18 +3,13 @@ import {
   Controller,
   Delete,
   Get,
-  Header,
   Param,
-  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
-  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
-import { Response } from 'express';
 import { DevicesService } from './devices.service';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
@@ -125,56 +120,6 @@ export class DevicesController {
     return this.service.syncTime(current, id).then(() => ({ ok: true }));
   }
 
-  /**
-   * Stream sessiyasini boshlash. Dialog ochilganda chaqiriladi.
-   * Birinchi viewer kelganda agent qurilmadan kadrlarni keshlashni
-   * boshlaydi. Bir nechta admin bir kameraga qarasa hisoblagich oshadi.
-   */
-  @Post(':id/stream/start')
-  @Roles('super_admin', 'company_admin')
-  @ApiOperation({ summary: 'Kamera stream sessiyasini boshlash' })
-  startStream(
-    @CurrentUser() current: AuthUser,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Query('fps', new ParseIntPipe({ optional: true })) fps: number | undefined,
-  ) {
-    return this.service.startStream(current, id, fps ?? 3);
-  }
-
-  /**
-   * Stream sessiyasidan chiqish. Dialog yopilganda chaqiriladi.
-   * Hisoblagich 0'ga tushganda agent stream'ni to'xtatadi.
-   */
-  @Post(':id/stream/stop')
-  @Roles('super_admin', 'company_admin')
-  @ApiOperation({ summary: 'Kamera stream sessiyasidan chiqish' })
-  stopStream(
-    @CurrentUser() current: AuthUser,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
-    return this.service.stopStream(current, id);
-  }
-
-  /**
-   * Stream'dan oxirgi keshlangan kadr. Browser polling shu endpoint'ni
-   * chaqiradi — agent qurilmaga to'g'ridan-to'g'ri ulamasdan keshdan beradi
-   * (tez). Throttle: 30 req/s — 5 fps × 6 viewer chegarasi.
-   * Sessiya yo'q yoki kadr hali tayyor emas bo'lsa 404.
-   */
-  @Get(':id/stream/frame')
-  @Roles('super_admin', 'company_admin')
-  @Throttle({ default: { limit: 30, ttl: 1_000 } })
-  @ApiOperation({ summary: 'Stream sessiyasidan oxirgi JPEG kadrni olish' })
-  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
-  @Header('Pragma', 'no-cache')
-  async streamFrame(
-    @CurrentUser() current: AuthUser,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Res() res: Response,
-  ): Promise<void> {
-    const buf = await this.service.getStreamFrame(current, id);
-    res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Content-Length', buf.length.toString());
-    res.end(buf);
-  }
+  // Kamera stream — endi WebSocket asosida (events.gateway). HTTP endpoint'lar
+  // olib tashlandi; brauzer to'g'ridan socket orqali subscribe bo'ladi.
 }

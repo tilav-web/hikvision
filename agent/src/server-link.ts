@@ -82,6 +82,12 @@ export class ServerLink {
     this.socket?.emit('agent:event', { deviceId, event });
   }
 
+  /** Stream session'da har yangi kadrni server'ga uzatish (browser broadcast'i uchun). */
+  forwardFrame(deviceId: string, base64: string): void {
+    if (!this.socket || !this.connected) return;
+    this.socket.emit('agent:streamFrame', { deviceId, imageBase64: base64 });
+  }
+
   isConnected(): boolean {
     return this.connected;
   }

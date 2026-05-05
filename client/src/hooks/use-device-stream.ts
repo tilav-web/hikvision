@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  fetchStreamFrame,
-  startDeviceStream,
-  stopDeviceStream,
-} from '@/api/devices';
-import { getApiErrorMessage } from '@/lib/api';
+import { io, Socket } from 'socket.io-client';
+import { useAuthStore } from '@/stores/auth-store';
+
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+const NAMESPACE_URL = `${API_BASE}/events`;
 
 interface StreamState {
   /** Hozirgi blob URL — birinchi muvaffaqiyatli kadrgacha null */
@@ -13,21 +12,27 @@ interface StreamState {
   lastFetchedAt: number | null;
   /** Birinchi kadrgacha true */
   isInitialLoading: boolean;
-  /** Oxirgi muvaffaqiyatsiz so'rov xatosi */
+  /** Oxirgi xato — subscribe yoki agent xatolari */
   error: string | null;
 }
 
 /**
- * Kamera stream lifecycle hooki.
+ * Kamera stream — WebSocket asosida (HTTP polling EMAS):
  *
- *  - `enabled=true` bo'lganda: agentga `startStream` yuboriladi (companyId guard
- *    server tomonida), keyin har 1000/fps ms da `frame` GET qilinadi.
- *  - `enabled` false bo'lsa yoki komponent unmount bo'lsa: `stopStream` yuboriladi.
- *  - Browser crash holatida ham agent o'zining 60s `lastTouch` timeoutiga ko'ra
- *    avtomatik to'xtaydi — orphaned session yo'q.
+ * Lifecycle:
+ *   1. Yagona events socket'ga ulanamiz (token bilan auth)
+ *   2. `stream:subscribe { deviceId, fps }` emit — server bu deviceId
+ *      uchun birinchi obunachi bo'lsa agentga `startStream` yuboradi
+ *   3. Agent har yangi kadrni server'ga push qiladi (agent:streamFrame),
+ *      server `stream:frame { deviceId, imageBase64 }`'ni shu room'ga emit
+ *   4. Hookni o'chirilganda `stream:unsubscribe` emit — oxirgi obunachi
+ *      bo'lsa agent stream'ni to'xtatadi
  *
- *  - fps o'zgartirilsa qaytadan `startStream` (idempotent — agent fps yangilaydi).
- *  - Memory: avvalgi blob URL har yangi kadrda revoke qilinadi.
+ * Afzalliklari (HTTP polling'ga nisbatan):
+ *   - Push asosida (server kadr kelganda darhol uzatadi, polling'sayoz)
+ *   - Bitta socket har bir brauzer uchun (HTTP requests/sec yo'q)
+ *   - Bir nechta admin bir kameraga qarasa — bitta agent stream, hammaga tarqaladi
+ *   - Latency ~5-10ms (HTTP polling 50-100ms'ga qarshi)
  */
 export function useDeviceStream(
   deviceId: string | null | undefined,
@@ -35,6 +40,7 @@ export function useDeviceStream(
 ): StreamState {
   const fps = Math.max(0.5, Math.min(10, opts.fps ?? 3));
   const enabled = opts.enabled ?? true;
+  const token = useAuthStore((s) => s.token);
 
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
@@ -44,71 +50,75 @@ export function useDeviceStream(
   const lastUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!deviceId || !enabled) {
+    if (!deviceId || !enabled || !token) {
       setIsInitialLoading(false);
       return;
     }
 
     let aborted = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     setIsInitialLoading(true);
     setError(null);
 
-    // 1) Sessiyani boshlaymiz — agentga startStream yuboriladi.
-    const startPromise = startDeviceStream(deviceId, fps).catch((e) => {
-      if (!aborted) {
-        setError(getApiErrorMessage(e));
-        setIsInitialLoading(false);
-      }
-      throw e;
+    const socket: Socket = io(NAMESPACE_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
     });
 
-    // 2) Polling — start javobini kutib turamiz, so'ng frame'larni so'raymiz.
-    //    Birinchi bir necha kadr 404 bo'lishi mumkin (agent hali kadrga ulgurmagan)
-    //    — bu normal, error sifatida ko'rsatamiz va davom etamiz.
-    const fetchOne = async (): Promise<void> => {
-      const startedAt = Date.now();
-      try {
-        const blob = await fetchStreamFrame(deviceId);
-        if (aborted) return;
-        const url = URL.createObjectURL(blob);
-        if (lastUrlRef.current) URL.revokeObjectURL(lastUrlRef.current);
-        lastUrlRef.current = url;
-        setImgUrl(url);
-        setLastFetchedAt(Date.now());
-        setError(null);
-      } catch (e) {
-        if (!aborted) setError(getApiErrorMessage(e));
-      } finally {
-        if (!aborted) {
-          setIsInitialLoading(false);
-          const elapsed = Date.now() - startedAt;
-          const wait = Math.max(50, Math.round(1000 / fps) - elapsed);
-          timeoutId = setTimeout(fetchOne, wait);
-        }
-      }
+    const onFrame = (payload: { deviceId: string; imageBase64: string }) => {
+      if (aborted || payload.deviceId !== deviceId) return;
+      // base64 → Blob → object URL. Avvalgi URL'ni revoke qilamiz.
+      const bin = atob(payload.imageBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
+      if (lastUrlRef.current) URL.revokeObjectURL(lastUrlRef.current);
+      lastUrlRef.current = url;
+      setImgUrl(url);
+      setLastFetchedAt(Date.now());
+      setIsInitialLoading(false);
+      setError(null);
     };
 
-    startPromise
-      .then(() => {
-        if (!aborted) fetchOne();
-      })
-      .catch(() => {
-        // start xato bo'ldi — polling boshlanmaydi.
-      });
+    socket.on('connect', () => {
+      // Subscribe — server agentga startStream yuboradi
+      socket.emit(
+        'stream:subscribe',
+        { deviceId, fps },
+        (res: { ok: boolean; error?: string }) => {
+          if (aborted) return;
+          if (!res?.ok) {
+            setError(res?.error ?? 'subscribe muvaffaqiyatsiz');
+            setIsInitialLoading(false);
+          }
+        },
+      );
+    });
 
-    // 3) Cleanup — abort + sessiyani yopish (best effort)
+    socket.on('connect_error', (e) => {
+      if (!aborted) {
+        setError(e.message || 'socket ulanmadi');
+        setIsInitialLoading(false);
+      }
+    });
+
+    socket.on('stream:frame', onFrame);
+
     return () => {
       aborted = true;
-      if (timeoutId) clearTimeout(timeoutId);
+      // Best effort — agentga server orqali stop yetkazamiz, keyin uzilamiz.
+      if (socket.connected) {
+        socket.emit('stream:unsubscribe', { deviceId });
+      }
+      socket.off('stream:frame', onFrame);
+      socket.removeAllListeners();
+      socket.disconnect();
       if (lastUrlRef.current) {
         URL.revokeObjectURL(lastUrlRef.current);
         lastUrlRef.current = null;
       }
-      // Stop xato bo'lsa muammo emas — agent 60s'da o'zi to'xtaydi.
-      stopDeviceStream(deviceId).catch(() => undefined);
     };
-  }, [deviceId, fps, enabled]);
+  }, [deviceId, fps, enabled, token]);
 
   return { imgUrl, lastFetchedAt, isInitialLoading, error };
 }

@@ -1,6 +1,9 @@
 import { IsapiClient } from './isapi/isapi-client';
 import { logger } from './logger';
 
+/** Agent har yangi kadr olganda chaqiriladi — server-link'ga forward qilish uchun. */
+export type FrameCallback = (deviceId: string, base64: string) => void;
+
 interface StreamSession {
   /** ISAPI client (qayta foydalaniladi) */
   client: IsapiClient;
@@ -8,7 +11,7 @@ interface StreamSession {
   fps: number;
   /** Polling timer */
   timer: NodeJS.Timeout | null;
-  /** Oxirgi muvaffaqiyatli kadr */
+  /** Oxirgi muvaffaqiyatli kadr (debug uchun saqlanadi, server'ga push qilamiz) */
   latestFrame: Buffer | null;
   /** Oxirgi olishdagi xato */
   lastError: string | null;
@@ -32,6 +35,12 @@ interface StreamSession {
 export class StreamManager {
   private readonly sessions = new Map<string, StreamSession>();
   private readonly idleTimeoutMs = 60_000;
+
+  /**
+   * @param onFrame Har yangi kadr server'ga forward qilish uchun callback.
+   *                Brauzerlar event socket orqali kadrlarni real-time oladi.
+   */
+  constructor(private readonly onFrame?: FrameCallback) {}
 
   /**
    * Sessiyani boshlash yoki fps'ni yangilash. Idempotent — bir necha marta
@@ -162,6 +171,8 @@ export class StreamManager {
       if (this.sessions.get(deviceId) !== session) return;
       session.latestFrame = buf;
       session.lastError = null;
+      // Yangi kadr — server'ga push (events kanali orqali brauzerlarga tarqatadi)
+      this.onFrame?.(deviceId, buf.toString('base64'));
     } catch (e) {
       if (this.sessions.get(deviceId) !== session) return;
       session.lastError = (e as Error).message;

@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { forwardRef, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   ConnectedSocket,
@@ -17,6 +17,7 @@ import { DeviceEntity } from '../entities/device.entity';
 import { decryptSecret } from '../../common/crypto.util';
 import { CompaniesService } from '../../companies/companies.service';
 import { AgentsService } from './agents.service';
+import { EventsGateway } from '../events/events.gateway';
 
 interface PendingCommand {
   resolve: (data: any) => void;
@@ -81,6 +82,8 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly deviceRepo: Repository<DeviceEntity>,
     private readonly companies: CompaniesService,
     private readonly agentsService: AgentsService,
+    @Inject(forwardRef(() => EventsGateway))
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -244,6 +247,23 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } else {
       p.reject(new Error(result.error ?? 'agent error'));
     }
+  }
+
+  /**
+   * Agent jonli stream'dan yangi kadrni push qiladi. Server bu kadrni
+   * shu qurilmaga obuna bo'lgan brauzerlarga (events kanali orqali) tarqatadi.
+   */
+  @SubscribeMessage('agent:streamFrame')
+  onStreamFrame(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { deviceId: string; imageBase64: string },
+  ): void {
+    const agentId = (client.data as any)?.agentId as string | undefined;
+    if (!agentId || !payload?.deviceId || !payload.imageBase64) return;
+    this.eventsGateway.broadcastStreamFrame(
+      payload.deviceId,
+      payload.imageBase64,
+    );
   }
 
   @SubscribeMessage('agent:event')

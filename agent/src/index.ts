@@ -20,9 +20,14 @@ async function main(): Promise<void> {
   const pool = new DevicePool();
   const sadp = new SadpDiscovery();
   sadp.start();
-  const streams = new StreamManager();
+  // StreamManager → har yangi kadrni server'ga push qiladi (link.forwardFrame)
+  // Server uni events kanali orqali subscribe bo'lgan brauzerlarga tarqatadi.
+  let link!: ServerLink;
+  const streams = new StreamManager((deviceId, base64) =>
+    link.forwardFrame(deviceId, base64),
+  );
   const handler = new CommandHandler(pool, sadp, streams);
-  const link = new ServerLink(config, pool, handler);
+  link = new ServerLink(config, pool, handler);
   link.start();
 
   const shutdown = (signal: string) => {
