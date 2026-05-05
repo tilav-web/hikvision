@@ -19,8 +19,23 @@ function pad(n: number): string {
   return n.toString().padStart(2, '0');
 }
 
+/**
+ * Attendance hisob-kitoblari uchun timezone. .env'da TZ_DEFAULT bo'lsa o'sha,
+ * bo'lmasa Asia/Tashkent. MUHIM: bu kunlik chegarani aniqlaydi — agar server
+ * UTC'da ishlasa, lekin kampaniya UZ'da bo'lsa, 23:30 UTC = 04:30 UZ ertasi kun.
+ */
+const ATTENDANCE_TZ = process.env.TZ_DEFAULT || 'Asia/Tashkent';
+
+const dateFmt = new Intl.DateTimeFormat('en-CA', {
+  timeZone: ATTENDANCE_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
 function dateString(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // 'en-CA' YYYY-MM-DD formatini beradi.
+  return dateFmt.format(d);
 }
 
 function parseHHMM(hhmm: string, baseDate: Date): Date {
@@ -40,9 +55,64 @@ interface OutInterval {
   minutes: number;
 }
 
+/**
+ * Maosh hisobi uchun standart UZ ish kunlari/oy. Schedule yo'q yoki
+ * `workingDays` bitmask bo'sh bo'lsa fallback sifatida ishlatiladi.
+ */
+const STANDARD_WORK_DAYS_PER_MONTH = 22;
+
+function paidDayWeight(status: AttendanceEntity['status']): number {
+  if (status === 'absent') return 0;
+  if (status === 'partial') return 0.5;
+  // present, late, currently_inside, overtime, leave, holiday — to'liq kun
+  return 1;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Schedule.workingDays bitmask: dush=1, sesh=2, chor=4, pay=8, juma=16,
+ * shanba=32, yakshanba=64. Sana uchun bu kun ish kunimi degan tekshiruv.
+ * JS getDay(): 0=yakshanba ... 6=shanba — moslashtiramiz.
+ */
+const DAY_BITS = [64, 1, 2, 4, 8, 16, 32]; // index = JS getDay()
+
+function isWorkingDay(date: Date, mask: number): boolean {
+  return (DAY_BITS[date.getDay()] & mask) !== 0;
+}
+
+/** Berilgan oyda shu schedule bo'yicha nechta ish kuni (bayramlar olib tashlanadi). */
+function workingDaysInMonth(
+  year: number,
+  month: number, // 0-based
+  mask: number,
+  holidays: Set<string>,
+): number {
+  if (mask === 0) return STANDARD_WORK_DAYS_PER_MONTH;
+  const last = new Date(year, month + 1, 0).getDate();
+  let count = 0;
+  for (let day = 1; day <= last; day++) {
+    const d = new Date(year, month, day);
+    if (!isWorkingDay(d, mask)) continue;
+    const ds = `${year}-${pad(month + 1)}-${pad(day)}`;
+    if (holidays.has(ds)) continue;
+    count++;
+  }
+  return count || STANDARD_WORK_DAYS_PER_MONTH;
+}
+
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
+
+  /**
+   * Per-(personId,date) mutex zanjiri: bir hodimning bitta kunini bir vaqtda
+   * faqat bitta `recomputeDay` qayta ishlasin (otherwise ikki parallel chaqiriq
+   * `attendance` rowini bir-birining ustiga yozadi).
+   */
+  private readonly dayLocks = new Map<string, Promise<unknown>>();
 
   constructor(
     @InjectRepository(AttendanceEntity)
@@ -163,8 +233,32 @@ export class AttendanceService {
   /**
    * Bitta hodim uchun bitta kunni qaytadan hisoblash.
    * ingestEvent va manual recompute uchun ishlatiladi.
+   *
+   * Per-(person,date) mutex bilan o'ralgan — parallel event'lar duplikat
+   * yozuvlarni yaratmaydi.
    */
   async recomputeDay(
+    companyId: string,
+    person: PersonEntity,
+    date: string,
+  ): Promise<AttendanceEntity> {
+    const key = `${person.id}:${date}`;
+    const prev = this.dayLocks.get(key) ?? Promise.resolve();
+    const next = prev
+      .catch(() => undefined)
+      .then(() => this.recomputeDayInternal(companyId, person, date));
+    this.dayLocks.set(key, next);
+    try {
+      return await next;
+    } finally {
+      // Faqat hozirgi promise oxirgi bo'lsa map'dan olib tashlaymiz.
+      if (this.dayLocks.get(key) === next) {
+        this.dayLocks.delete(key);
+      }
+    }
+  }
+
+  private async recomputeDayInternal(
     companyId: string,
     person: PersonEntity,
     date: string,
@@ -409,7 +503,14 @@ export class AttendanceService {
     personId: string,
     opts: { from?: string; to?: string } = {},
   ): Promise<{
-    person: { id: string; name: string; employeeNo: string; companyId: string };
+    person: {
+      id: string;
+      name: string;
+      employeeNo: string;
+      companyId: string;
+      position: string | null;
+      baseSalary: string | null;
+    };
     range: { from: string; to: string };
     counts: {
       total: number;
@@ -431,6 +532,15 @@ export class AttendanceService {
       lunchOverstay: number;
     };
     money: { totalPenalty: number; totalBonus: number };
+    salary: {
+      baseMonthly: number;
+      dailyRate: number;
+      paidDays: number;
+      earnedBase: number;
+      totalPenalty: number;
+      totalBonus: number;
+      netPayable: number;
+    };
     rows: AttendanceEntity[];
   }> {
     const person = await this.personRepo.findOne({ where: { id: personId } });
@@ -483,17 +593,37 @@ export class AttendanceService {
       else if (p.type === 'bonus') totalBonus += amt;
     }
 
+    // Maosh hisobida ishlatish uchun: hodimning schedule'i va range'dagi bayramlar.
+    const schedule = person.scheduleId
+      ? await this.scheduleRepo.findOne({ where: { id: person.scheduleId } })
+      : null;
+    const holidayDates = person.companyId
+      ? await this.holidays.datesInRange(person.companyId, from, to)
+      : new Set<string>();
+
+    const salary = computeSalarySummary(
+      person.baseSalary,
+      rows,
+      totalPenalty,
+      totalBonus,
+      schedule,
+      holidayDates,
+    );
+
     return {
       person: {
         id: person.id,
         name: person.name,
         employeeNo: person.employeeNo,
         companyId: person.companyId!,
+        position: person.position,
+        baseSalary: person.baseSalary,
       },
       range: { from, to },
       counts,
       minutes,
       money: { totalPenalty, totalBonus },
+      salary,
       rows,
     };
   }
@@ -655,6 +785,95 @@ export class AttendanceService {
 }
 
 // ─── Utility funksiyalari ──────────────────────────────────────────────
+
+/**
+ * Maosh xulosasi: baseSalary (oylik) va attendance kunlari asosida.
+ *
+ * Algoritm:
+ *  - Har bir attendance qatori uchun, shu qatorning **OYi**dagi kutilgan ish
+ *    kunlari soni hisoblanadi (schedule.workingDays bitmask − bayramlar).
+ *  - Bir kunlik tarif = baseSalary / shu oyning ish kunlari.
+ *  - Qatorning hissasi = dailyRate × paidDayWeight(status).
+ *
+ * Bu yondashuv:
+ *   ✓ Cross-month oraliqlar to'g'ri hisoblanadi (yanvar+fevral har xil ish kuni)
+ *   ✓ Bayramlar maxrajdan olib tashlanadi (haqiqiy kunlik tarif yuqori)
+ *   ✓ Yarim oy uchun proportional summa
+ *
+ * baseSalary <= 0 bo'lsa hammasi 0 — UI "kiritilmagan" indikatori sifatida ko'rsatadi.
+ *
+ * Schedule yo'q yoki workingDays=0 bo'lsa, oyda STANDARD_WORK_DAYS_PER_MONTH (22)
+ * fallback sifatida ishlatiladi.
+ */
+function computeSalarySummary(
+  baseSalaryRaw: string | null,
+  rows: AttendanceEntity[],
+  totalPenalty: number,
+  totalBonus: number,
+  schedule: ScheduleEntity | null,
+  holidayDates: Set<string>,
+): {
+  baseMonthly: number;
+  dailyRate: number;
+  paidDays: number;
+  earnedBase: number;
+  totalPenalty: number;
+  totalBonus: number;
+  netPayable: number;
+} {
+  const baseMonthly = parseFloat(baseSalaryRaw ?? '') || 0;
+  if (baseMonthly <= 0) {
+    return {
+      baseMonthly: 0,
+      dailyRate: 0,
+      paidDays: 0,
+      earnedBase: 0,
+      totalPenalty,
+      totalBonus,
+      netPayable: 0,
+    };
+  }
+
+  const mask = schedule?.workingDays ?? 0;
+  // Per-(year,month) cache — bir oydagi ish kunlari faqat bir marta hisoblansin.
+  const monthCache = new Map<string, number>();
+  const monthDays = (year: number, month: number): number => {
+    const k = `${year}-${month}`;
+    let v = monthCache.get(k);
+    if (v === undefined) {
+      v = workingDaysInMonth(year, month, mask, holidayDates);
+      monthCache.set(k, v);
+    }
+    return v;
+  };
+
+  let earnedBase = 0;
+  let paidDays = 0;
+  let weightedRateSum = 0; // dailyRate'ning paidDays-bo'yicha o'rtachasi (UI uchun)
+  for (const row of rows) {
+    const weight = paidDayWeight(row.status);
+    if (weight === 0) continue;
+    const [ys, ms] = row.date.split('-');
+    const days = monthDays(parseInt(ys, 10), parseInt(ms, 10) - 1);
+    const dailyRate = baseMonthly / days;
+    earnedBase += dailyRate * weight;
+    paidDays += weight;
+    weightedRateSum += dailyRate * weight;
+  }
+  const avgDailyRate =
+    paidDays > 0 ? weightedRateSum / paidDays : baseMonthly / STANDARD_WORK_DAYS_PER_MONTH;
+  const netPayable = earnedBase + totalBonus - totalPenalty;
+
+  return {
+    baseMonthly: round2(baseMonthly),
+    dailyRate: round2(avgDailyRate),
+    paidDays: round2(paidDays),
+    earnedBase: round2(earnedBase),
+    totalPenalty: round2(totalPenalty),
+    totalBonus: round2(totalBonus),
+    netPayable: round2(netPayable),
+  };
+}
 
 interface DirectedEvent {
   capturedAt: Date | string;

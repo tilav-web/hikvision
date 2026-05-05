@@ -155,7 +155,10 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   isAgentOnline(agentId: string): boolean {
-    return this.sockets.has(agentId);
+    const sock = this.sockets.get(agentId);
+    // Faqat map'da emas, socket haqiqatdan ham connected bo'lishi shart —
+    // crash holatlarida stale entry qoladi, false-positive "online" beradi.
+    return !!sock && sock.connected;
   }
 
   /**

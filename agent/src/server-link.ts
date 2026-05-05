@@ -21,6 +21,11 @@ export class ServerLink {
 
   start(): void {
     const url = this.cfg.serverUrl.replace(/\/+$/, '');
+    if (this.cfg.tlsInsecure) {
+      logger.warn(
+        '⚠️  INSECURE_TLS=true — server sertifikati tekshirilmayapti. Bu faqat dev uchun!',
+      );
+    }
     this.socket = io(`${url}/agents`, {
       transports: ['polling', 'websocket'],
       reconnection: true,
@@ -30,7 +35,7 @@ export class ServerLink {
         token: this.cfg.companyToken,
         name: this.cfg.agentName,
       },
-      rejectUnauthorized: false,
+      rejectUnauthorized: !this.cfg.tlsInsecure,
     });
 
     this.socket.on('connect', () => {

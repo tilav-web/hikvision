@@ -215,17 +215,18 @@ export class EventsService {
   // ───────── ichki ─────────
 
   private async resolveDevice(payload: any, clientIp?: string): Promise<DeviceEntity | null> {
-    // 1. Payloaddagi ipAddress ham bo'lishi mumkin
+    // 1. Serial number — global unikal, kompaniya bo'yicha bo'rt etmaydi.
+    const sn: string | undefined = payload?.serialNo || payload?.deviceID;
+    if (sn) {
+      const d = await this.deviceRepo.findOne({ where: { serialNo: sn } });
+      if (d) return d;
+    }
+    // 2. IP bo'yicha — fallback. Bir xil IP ikki kompaniyada bo'lsa
+    // findByHost null qaytaradi (cross-tenant leak'ni oldini olish).
     const ipFromPayload: string | undefined = payload?.ipAddress;
     const candidate = ipFromPayload || (clientIp ? clientIp.replace(/^::ffff:/, '') : undefined);
     if (candidate) {
       const d = await this.devicesService.findByHost(candidate);
-      if (d) return d;
-    }
-    // 2. Serial number bo'yicha
-    const sn: string | undefined = payload?.serialNo || payload?.deviceID;
-    if (sn) {
-      const d = await this.deviceRepo.findOne({ where: { serialNo: sn } });
       if (d) return d;
     }
     return null;

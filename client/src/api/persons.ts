@@ -12,6 +12,9 @@ export interface PersonInput {
   pin?: string;
   phone?: string;
   email?: string;
+  position?: string;
+  /** Numeric string (so'm). Bo'sh — kiritilmagan. */
+  baseSalary?: string;
   deviceIds?: string[];
   autoSync?: boolean;
 }

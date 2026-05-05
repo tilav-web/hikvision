@@ -313,9 +313,22 @@ export class DevicesService {
     await this.repo.update(id, { isOnline: true, lastSeenAt: new Date() });
   }
 
-  /** IP bo'yicha aparatni topish (event receiver uchun). */
+  /**
+   * IP bo'yicha aparatni topish (event receiver uchun).
+   * MUHIM: ikki kampaniya bir xil LAN IP'larni ishlatishi mumkin.
+   * Shuning uchun bir nechta natija bo'lsa, qaror noaniq deb null qaytariladi —
+   * caller serialNo orqali aniqroq topishi shart.
+   */
   async findByHost(host: string): Promise<DeviceEntity | null> {
-    return this.repo.findOne({ where: { host } });
+    const matches = await this.repo.find({ where: { host }, take: 2 });
+    if (matches.length === 0) return null;
+    if (matches.length > 1) {
+      this.logger.warn(
+        `findByHost(${host}): ${matches.length}+ ta moslik — noaniq, null qaytarildi`,
+      );
+      return null;
+    }
+    return matches[0];
   }
 
   // ───────── ichki ─────────

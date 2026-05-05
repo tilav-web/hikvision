@@ -98,11 +98,13 @@ export class CreatePersonDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsEmail()
+  @Length(1, 64)
   email?: string;
 
   @ApiPropertyOptional({ example: 'ext-user-id' })
   @IsOptional()
   @IsString()
+  @Length(1, 64)
   externalUserId?: string;
 
   @ApiPropertyOptional({ description: 'Ish jadvali (Schedule) ID' })
@@ -119,6 +121,9 @@ export class CreatePersonDto {
   @ApiPropertyOptional({ example: '5000000.00', description: 'Baza maosh (so\'m)' })
   @IsOptional()
   @IsString()
+  @Matches(/^\d{1,10}(\.\d{1,2})?$/, {
+    message: 'baseSalary musbat butun yoki o\'nlik (max 2 kasr)',
+  })
   baseSalary?: string;
 
   @ApiPropertyOptional({

@@ -16,8 +16,14 @@ async function bootstrap() {
   app.use(compression());
   app.use(cookieParser());
 
+  // CORS_ORIGIN — vergul bilan ajratilgan ro'yxat. '*' bilan credentials birga
+  // ishlamaydi (CORS spec'ga zid), shuning uchun '*' bo'lsa origin echo qilinadi.
+  const corsOrigin = config.get<string>('CORS_ORIGIN', 'http://localhost:5173');
+  const origins = corsOrigin === '*'
+    ? true
+    : corsOrigin.split(',').map((o) => o.trim()).filter(Boolean);
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGIN', '*'),
+    origin: origins,
     credentials: true,
   });
 

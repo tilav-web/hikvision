@@ -165,7 +165,14 @@ export interface AttendanceDayDetail {
 }
 
 export interface PersonStats {
-  person: { id: string; name: string; employeeNo: string; companyId: string };
+  person: {
+    id: string;
+    name: string;
+    employeeNo: string;
+    companyId: string;
+    position: string | null;
+    baseSalary: string | null;
+  };
   range: { from: string; to: string };
   counts: {
     total: number;
@@ -187,6 +194,16 @@ export interface PersonStats {
     lunchOverstay: number;
   };
   money: { totalPenalty: number; totalBonus: number };
+  /** Maosh hisobi (baseSalary va attendance asosida). baseSalary kiritilmagan bo'lsa hammasi 0. */
+  salary: {
+    baseMonthly: number;
+    dailyRate: number;
+    paidDays: number;
+    earnedBase: number;
+    totalPenalty: number;
+    totalBonus: number;
+    netPayable: number;
+  };
   rows: Attendance[];
 }
 

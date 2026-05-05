@@ -14,6 +14,18 @@ import {
 import type { Company, Device, Person } from '@/api/types';
 import type { PersonInput } from '@/api/persons';
 
+/**
+ * Maoshni inson o'qiy oladigan ko'rinishga keltiradi: "5000000" → "5 000 000".
+ * Ortidagi nuqta saqlanadi (foydalanuvchi yarmida bo'lsa o'chirib qo'ymasin).
+ */
+function formatSalaryDisplay(raw: string): string {
+  const digits = raw.replace(/[^\d.]/g, '');
+  if (!digits) return '';
+  const [intPart, decPart] = digits.split('.');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return decPart !== undefined ? `${grouped}.${decPart}` : grouped;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -44,6 +56,8 @@ export function PersonForm({
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [cardNo, setCardNo] = useState('');
+  const [position, setPosition] = useState('');
+  const [baseSalary, setBaseSalary] = useState('');
   const [deviceIds, setDeviceIds] = useState<string[]>([]);
   const [autoSync, setAutoSync] = useState(true);
   const [file, setFile] = useState<File | null>(null);
@@ -60,6 +74,8 @@ export function PersonForm({
       setEmail(initial?.email ?? '');
       setPin('');
       setCardNo(initial?.cardNo ?? '');
+      setPosition(initial?.position ?? '');
+      setBaseSalary(initial?.baseSalary ?? '');
       setDeviceIds(initial?.deviceLinks?.map((l) => l.deviceId) ?? []);
       setAutoSync(true);
       setFile(null);
@@ -105,6 +121,8 @@ export function PersonForm({
 
   const handle = (e: FormEvent) => {
     e.preventDefault();
+    // Maosh — faqat raqam belgilarini olib qolamiz (ko'rsatmadagi probel/vergullarni tashlaymiz).
+    const salaryDigits = baseSalary.replace(/[^\d.]/g, '');
     const dto: PersonInput = {
       employeeNo: employeeNo.trim(),
       name: name.trim(),
@@ -113,6 +131,8 @@ export function PersonForm({
       email: email.trim() || undefined,
       pin: pin.trim() || undefined,
       cardNo: cardNo.trim() || undefined,
+      position: position.trim() || undefined,
+      baseSalary: salaryDigits || undefined,
       deviceIds: deviceIds.length ? deviceIds : undefined,
       autoSync,
     };
@@ -248,6 +268,35 @@ export function PersonForm({
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
                     placeholder="4-8 raqam"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-position">
+                    Lavozim{' '}
+                    <span className="text-xs text-(--color-muted-foreground) font-normal">
+                      (ixtiyoriy)
+                    </span>
+                  </Label>
+                  <Input
+                    id="p-position"
+                    value={position}
+                    onChange={(e) => setPosition(e.target.value)}
+                    placeholder="Buxgalter, Operator..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-salary">
+                    Oylik maosh{' '}
+                    <span className="text-xs text-(--color-muted-foreground) font-normal">
+                      (tavsiya etiladi)
+                    </span>
+                  </Label>
+                  <Input
+                    id="p-salary"
+                    inputMode="numeric"
+                    value={formatSalaryDisplay(baseSalary)}
+                    onChange={(e) => setBaseSalary(e.target.value)}
+                    placeholder="masalan 5 000 000"
                   />
                 </div>
                 <div className="space-y-2 col-span-2">

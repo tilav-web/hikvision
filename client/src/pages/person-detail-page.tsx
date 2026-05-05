@@ -13,6 +13,8 @@ import {
   Phone,
   Mail,
   CreditCard,
+  Wallet,
+  Banknote,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -334,6 +336,9 @@ export function PersonDetailPage() {
             />
           </div>
 
+          {/* Maosh hisobi */}
+          <SalaryCard salary={stats.salary} />
+
           {/* Kunlar jadvali */}
           <Card>
             <div className="px-4 py-3 border-b border-(--color-border) text-sm text-(--color-muted-foreground)">
@@ -447,6 +452,123 @@ function ProfileField({
           {value || '—'}
         </dd>
       </div>
+    </div>
+  );
+}
+
+function SalaryCard({
+  salary,
+}: Readonly<{
+  salary: import('@/api/types').PersonStats['salary'];
+}>) {
+  const notSet = salary.baseMonthly <= 0;
+
+  if (notSet) {
+    return (
+      <Card className="p-5 mb-5 bg-(--color-secondary)/20 border-dashed">
+        <div className="flex items-start gap-3">
+          <Wallet className="h-5 w-5 text-(--color-muted-foreground) mt-0.5" />
+          <div className="text-sm text-(--color-muted-foreground)">
+            <div className="font-medium text-(--color-foreground) mb-1">
+              Maosh kiritilmagan
+            </div>
+            Hodimni tahrirlashda{' '}
+            <span className="font-medium">Oylik maosh</span> maydonini to'ldiring
+            — bu yerda hisoblangan summa, bonus va jarimalarni hisobga olgan
+            holda to'lanadigan summa avtomatik chiqadi.
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5 mb-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Wallet className="h-5 w-5" />
+        <h2 className="text-base font-semibold">Maosh hisobi</h2>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 text-sm">
+        <SalaryStat
+          label="Baza maosh (oylik)"
+          value={fmtMoney(salary.baseMonthly)}
+        />
+        <SalaryStat
+          label="Kunlik tarif"
+          value={fmtMoney(salary.dailyRate)}
+          hint="22 ish kun/oy"
+        />
+        <SalaryStat
+          label="Hisoblangan kun"
+          value={salary.paidDays.toLocaleString('uz-UZ')}
+          hint="present + late + ½×partial..."
+        />
+      </div>
+
+      <div className="border-t border-(--color-border) pt-4 space-y-2 text-sm">
+        <SalaryRow label="Asosiy ishlangan" value={salary.earnedBase} />
+        <SalaryRow
+          label="+ Bonuslar"
+          value={salary.totalBonus}
+          tone={salary.totalBonus > 0 ? 'success' : 'muted'}
+        />
+        <SalaryRow
+          label="− Jarimalar"
+          value={salary.totalPenalty}
+          tone={salary.totalPenalty > 0 ? 'destructive' : 'muted'}
+        />
+        <div className="border-t border-(--color-border) pt-2 flex items-center justify-between">
+          <span className="font-semibold flex items-center gap-2">
+            <Banknote className="h-4 w-4" />
+            To'lanadigan summa
+          </span>
+          <span className="text-lg font-bold">
+            {fmtMoney(salary.netPayable)}
+          </span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function SalaryStat({
+  label,
+  value,
+  hint,
+}: Readonly<{ label: string; value: string; hint?: string }>) {
+  return (
+    <div>
+      <div className="text-xs text-(--color-muted-foreground) uppercase tracking-wide">
+        {label}
+      </div>
+      <div className="font-semibold mt-1">{value}</div>
+      {hint && (
+        <div className="text-xs text-(--color-muted-foreground) mt-0.5">
+          {hint}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SalaryRow({
+  label,
+  value,
+  tone,
+}: Readonly<{
+  label: string;
+  value: number;
+  tone?: 'success' | 'destructive' | 'muted';
+}>) {
+  let cls = 'font-mono';
+  if (tone === 'success') cls += ' text-emerald-600';
+  else if (tone === 'destructive') cls += ' text-red-600';
+  else if (tone === 'muted') cls += ' text-(--color-muted-foreground)';
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-(--color-muted-foreground)">{label}</span>
+      <span className={cls}>{fmtMoney(value)}</span>
     </div>
   );
 }

@@ -47,6 +47,12 @@ export const config = {
   logLevel: (process.env.LOG_LEVEL ?? 'info').toLowerCase(),
   reconnectDelayMs: Number.parseInt(process.env.RECONNECT_DELAY_MS ?? '5000', 10),
   cmdTimeoutMs: Number.parseInt(process.env.CMD_TIMEOUT_MS ?? '60000', 10),
+  /**
+   * Server bilan TLS sertifikat tekshiruvi.
+   * Default — tekshiriladi (xavfsiz). Faqat ishlab chiqishda
+   * INSECURE_TLS=true qo'yib o'chirish mumkin.
+   */
+  tlsInsecure: process.env.INSECURE_TLS === 'true',
 };
 
 export type AgentConfig = typeof config;

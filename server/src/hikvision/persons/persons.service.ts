@@ -106,9 +106,9 @@ export class PersonsService {
 
     // Avto-generate yoki user kiritgan qiymat bilan saqlaymiz.
     // Bir vaqtda 2 admin qo'shsa unique constraint bilan konflikt bo'lishi mumkin —
-    // shu uchun retry qilamiz (faqat avto-generate rejimida).
+    // shu uchun avto-rejimda retry, qo'lda kiritilganda mappingli xabar.
     const saved = userProvided
-      ? await this.personRepo.save(
+      ? await this.saveWithUniqueMapping(
           this.personRepo.create({
             ...baseFields,
             employeeNo: dto.employeeNo!.trim(),
@@ -149,19 +149,65 @@ export class PersonsService {
           this.personRepo.create({ ...baseFields, employeeNo }),
         );
       } catch (e) {
-        // PostgreSQL unique violation → retry
-        const pgError = e as { code?: string; message?: string };
-        if (pgError?.code === '23505') {
-          lastErr = e;
-          this.logger.warn(
-            `employeeNo race conflict, retry attempt ${attempt + 1}/${MAX_ATTEMPTS}`,
-          );
-          continue;
+        const pg = e as { code?: string; constraint?: string };
+        // Faqat employeeNo unique konfliktida retry qilamiz. cardNo/pin
+        // konflikti — foydalanuvchi xatosi, tushunarli xabar bilan to'xtaymiz.
+        if (pg?.code === '23505') {
+          if (pg.constraint?.includes('employee')) {
+            lastErr = e;
+            this.logger.warn(
+              `employeeNo race, retry ${attempt + 1}/${MAX_ATTEMPTS}`,
+            );
+            continue;
+          }
+          if (pg.constraint?.includes('card')) {
+            throw new ConflictException(
+              `Karta raqami band — boshqa hodimga biriktirilgan`,
+            );
+          }
+          if (pg.constraint?.includes('pin')) {
+            throw new ConflictException(
+              `PIN band — boshqa hodimga biriktirilgan`,
+            );
+          }
         }
         throw e;
       }
     }
     throw lastErr ?? new Error('employeeNo avto-generatsiya muvaffaqiyatsiz');
+  }
+
+  /**
+   * Person'ni saqlashda 23505 (unique violation)'ni constraint nomidan
+   * tushunarli ConflictException'ga aylantiradi. Aks holda Postgres xatosi
+   * 500 sifatida chiqib, foydalanuvchi sababini tushunmaydi.
+   *
+   * Constraint nomlari person.entity'da:
+   *   - uniq_company_employee → employeeNo
+   *   - uniq_company_card     → cardNo
+   *   - uniq_company_pin      → pin
+   */
+  private async saveWithUniqueMapping(
+    person: PersonEntity,
+  ): Promise<PersonEntity> {
+    try {
+      return await this.personRepo.save(person);
+    } catch (e) {
+      const pg = e as { code?: string; constraint?: string; detail?: string };
+      if (pg?.code !== '23505') throw e;
+      if (pg.constraint?.includes('card')) {
+        throw new ConflictException(
+          `Karta raqami band — boshqa hodimga biriktirilgan`,
+        );
+      }
+      if (pg.constraint?.includes('pin')) {
+        throw new ConflictException(`PIN band — boshqa hodimga biriktirilgan`);
+      }
+      if (pg.constraint?.includes('employee')) {
+        throw new ConflictException(`Tabel raqami band`);
+      }
+      throw new ConflictException(pg.detail || 'Unique cheklov buzildi');
+    }
   }
 
   /**
@@ -301,7 +347,7 @@ export class PersonsService {
       position: dto.position ?? p.position,
       baseSalary: dto.baseSalary ?? p.baseSalary,
     });
-    const saved = await this.personRepo.save(p);
+    const saved = await this.saveWithUniqueMapping(p);
 
     await this.linkRepo.update({ personId: id }, { status: 'pending' });
 
@@ -355,7 +401,34 @@ export class PersonsService {
     const p = await this.findOne(current, id);
     await fs.mkdir(FACE_DIR, { recursive: true });
 
-    const img = await Jimp.read(fileBuffer);
+    // Cheklov: 10MB. Jimp katta yoki bo'zilgan tasvirda OOM qila oladi.
+    if (!fileBuffer || fileBuffer.length === 0) {
+      throw new BadRequestException('Bo\'sh fayl yuborildi');
+    }
+    if (fileBuffer.length > 10 * 1024 * 1024) {
+      throw new BadRequestException(
+        `Rasm hajmi 10MB dan oshmasligi kerak (${Math.round(fileBuffer.length / 1024)}KB)`,
+      );
+    }
+    // Magic bytes check — JPEG (FF D8) yoki PNG (89 50 4E 47).
+    const isJpeg = fileBuffer[0] === 0xff && fileBuffer[1] === 0xd8;
+    const isPng =
+      fileBuffer[0] === 0x89 &&
+      fileBuffer[1] === 0x50 &&
+      fileBuffer[2] === 0x4e &&
+      fileBuffer[3] === 0x47;
+    if (!isJpeg && !isPng) {
+      throw new BadRequestException('Faqat JPEG yoki PNG qabul qilinadi');
+    }
+
+    let img;
+    try {
+      img = await Jimp.read(fileBuffer);
+    } catch (e) {
+      throw new BadRequestException(
+        `Rasmni o'qib bo'lmadi (bo'zilgan fayl): ${(e as Error).message}`,
+      );
+    }
     const w = img.bitmap.width;
     if (w > 480) {
       img.resize({ w: 480 });

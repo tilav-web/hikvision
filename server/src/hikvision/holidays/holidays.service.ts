@@ -45,6 +45,19 @@ export class HolidaysService {
     return !!h;
   }
 
+  /** Bayram sanalarining oraliqda set ko'rinishi (maosh hisoblash uchun). */
+  async datesInRange(
+    companyId: string,
+    from: string,
+    to: string,
+  ): Promise<Set<string>> {
+    const rows = await this.repo.find({
+      where: { companyId, date: Between(from, to) },
+      select: { date: true },
+    });
+    return new Set(rows.map((r) => r.date));
+  }
+
   async create(
     current: AuthUser,
     dto: CreateHolidayDto,

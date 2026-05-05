@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -9,6 +10,14 @@ import { VacationEntity } from '../entities/vacation.entity';
 import { PersonEntity } from '../entities/person.entity';
 import { AuthUser } from '../../auth/current-user.decorator';
 import { CreateVacationDto } from './dto/create-vacation.dto';
+
+function assertDateOrder(fromDate: string, toDate: string): void {
+  if (fromDate > toDate) {
+    throw new BadRequestException(
+      `boshlanish (${fromDate}) tugash (${toDate})'dan keyin bo'la olmaydi`,
+    );
+  }
+}
 
 @Injectable()
 export class VacationsService {
@@ -82,11 +91,15 @@ export class VacationsService {
       throw new ForbiddenException();
     }
 
+    const fromDate = dto.fromDate.slice(0, 10);
+    const toDate = dto.toDate.slice(0, 10);
+    assertDateOrder(fromDate, toDate);
+
     const entity = this.repo.create({
       companyId: person.companyId!,
       personId: person.id,
-      fromDate: dto.fromDate.slice(0, 10),
-      toDate: dto.toDate.slice(0, 10),
+      fromDate,
+      toDate,
       type: dto.type,
       status: dto.status ?? 'approved',
       reason: dto.reason ?? null,
@@ -103,6 +116,7 @@ export class VacationsService {
     const v = await this.findOne(current, id);
     if (dto.fromDate !== undefined) v.fromDate = dto.fromDate.slice(0, 10);
     if (dto.toDate !== undefined) v.toDate = dto.toDate.slice(0, 10);
+    assertDateOrder(v.fromDate, v.toDate);
     if (dto.type !== undefined) v.type = dto.type;
     if (dto.status !== undefined) v.status = dto.status;
     if (dto.reason !== undefined) v.reason = dto.reason;

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { Public } from './public.decorator';
@@ -11,6 +12,11 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
+  // Brute-force'ga qarshi: 1 daqiqada 5 marta urinish, soatda 20.
+  @Throttle({
+    short: { limit: 5, ttl: 60_000 },
+    medium: { limit: 20, ttl: 3_600_000 },
+  })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })

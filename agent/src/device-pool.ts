@@ -77,11 +77,13 @@ export class DevicePool {
   }
 
   async pingAll(): Promise<Array<{ id: string; ok: boolean }>> {
-    const out: Array<{ id: string; ok: boolean }> = [];
-    for (const [id, e] of this.entries) {
-      const ok = await e.client.ping().catch(() => false);
-      out.push({ id, ok });
-    }
-    return out;
+    // Parallel — 100 qurilmali kampaniyada inspect 15s o'rniga ~1s.
+    const items = [...this.entries.entries()];
+    return Promise.all(
+      items.map(async ([id, e]) => ({
+        id,
+        ok: await e.client.ping().catch(() => false),
+      })),
+    );
   }
 }
