@@ -30,4 +30,17 @@ export class AuthController {
   me(@CurrentUser() user: AuthUser) {
     return user;
   }
+
+  @Post('logout')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Logout — joriy token darhol bekor qilinadi (Redis blocklist)',
+  })
+  async logout(@CurrentUser() user: AuthUser) {
+    if (user.jti && user.exp) {
+      await this.auth.logout(user.jti, user.exp);
+    }
+    return { ok: true };
+  }
 }

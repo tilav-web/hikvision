@@ -21,11 +21,21 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       token: null,
       user: null,
       setAuth: (token, user) => set({ token, user }),
       logout: () => {
+        // Server tomonda token'ni bekor qilish (best-effort) — o'g'irlangan
+        // token qayta ishlatilmasin. Xato bo'lsa ham lokal logout davom etadi.
+        const token = get().token;
+        if (token) {
+          const base = import.meta.env.VITE_API_URL ?? '';
+          void fetch(`${base}/api/auth/logout`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => undefined);
+        }
         set({ token: null, user: null });
         // Keshni to'liq tozalash — avvalgi foydalanuvchi/kompaniya ma'lumoti
         // yangi sessiyaga sizib o'tmasligi uchun.

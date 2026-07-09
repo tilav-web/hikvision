@@ -6,6 +6,10 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   companyId: string | null;
+  /** Token jti — logout (bekor qilish) uchun. */
+  jti?: string;
+  /** Token exp (unix soniya) — blocklist TTL uchun. */
+  exp?: number;
 }
 
 export const CurrentUser = createParamDecorator(
