@@ -57,7 +57,7 @@ function fmt(d: string): string {
 
 export function VacationsPage() {
   const { data, isLoading } = useVacations();
-  const { data: persons } = usePersons();
+  const { data: persons } = usePersons({ take: 1000 }); // picker — barcha hodimlar
   const create = useCreateVacation();
   const remove = useDeleteVacation();
 

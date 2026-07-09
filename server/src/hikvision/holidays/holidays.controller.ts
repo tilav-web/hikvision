@@ -25,7 +25,7 @@ export class HolidaysController {
   constructor(private readonly service: HolidaysService) {}
 
   @Get()
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   list(
     @CurrentUser() current: AuthUser,
     @Query('companyId') companyId?: string,
@@ -36,13 +36,13 @@ export class HolidaysController {
   }
 
   @Post()
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   create(@CurrentUser() current: AuthUser, @Body() dto: CreateHolidayDto) {
     return this.service.create(current, dto);
   }
 
   @Patch(':id')
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   update(
     @CurrentUser() current: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -52,7 +52,7 @@ export class HolidaysController {
   }
 
   @Delete(':id')
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
     @CurrentUser() current: AuthUser,

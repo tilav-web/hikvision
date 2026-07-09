@@ -69,7 +69,7 @@ export function PayrollPage() {
   const [deleting, setDeleting] = useState<Penalty | null>(null);
 
   const { data, isLoading } = usePenalties({ from, to });
-  const { data: persons } = usePersons();
+  const { data: persons } = usePersons({ take: 1000 }); // picker — barcha hodimlar
   const create = useCreatePenalty();
   const remove = useDeletePenalty();
 

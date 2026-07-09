@@ -10,6 +10,7 @@ import { VacationEntity } from '../entities/vacation.entity';
 import { PersonEntity } from '../entities/person.entity';
 import { AuthUser } from '../../auth/current-user.decorator';
 import { CreateVacationDto } from './dto/create-vacation.dto';
+import { UpdateVacationDto } from './dto/update-vacation.dto';
 
 function assertDateOrder(fromDate: string, toDate: string): void {
   if (fromDate > toDate) {
@@ -111,7 +112,7 @@ export class VacationsService {
   async update(
     current: AuthUser,
     id: string,
-    dto: Partial<CreateVacationDto>,
+    dto: UpdateVacationDto,
   ): Promise<VacationEntity> {
     const v = await this.findOne(current, id);
     if (dto.fromDate !== undefined) v.fromDate = dto.fromDate.slice(0, 10);

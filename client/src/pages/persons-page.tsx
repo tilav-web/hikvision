@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, Trash2, RefreshCw, Search, IdCard } from 'lucide-react';
+import { Plus, Pencil, Trash2, RefreshCw, Search, IdCard, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -46,8 +46,26 @@ export function PersonsPage() {
   const role = useAuthStore((s) => s.user?.role);
   const isSuper = role === 'super_admin';
 
+  const PAGE_SIZE = 20;
   const [q, setQ] = useState('');
-  const { data, isLoading } = usePersons({ q });
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [page, setPage] = useState(0);
+
+  // Har harfda emas, yozib bo'lgach so'rov (300ms debounce) — so'rov toshqinini oldini oladi.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+  // Yangi qidiruvda 1-sahifaga qaytamiz.
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedQ]);
+
+  const { data, isLoading } = usePersons({
+    q: debouncedQ,
+    skip: page * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
   const { data: companies } = useCompanies();
   const { data: devices } = useDevices();
   const create = useCreatePerson();
@@ -61,6 +79,10 @@ export function PersonsPage() {
   const [deleting, setDeleting] = useState<Person | null>(null);
 
   const items = useMemo(() => data?.items ?? [], [data]);
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
+  const rangeEnd = Math.min((page + 1) * PAGE_SIZE, total);
 
   const onSubmit = async (dto: any, file?: File) => {
     if (editing) {
@@ -247,6 +269,35 @@ export function PersonsPage() {
             )}
           </TableBody>
         </Table>
+
+        {total > 0 && (
+          <div className="flex items-center justify-between border-t border-(--color-border) px-4 py-3">
+            <span className="text-sm text-(--color-muted-foreground)">
+              {rangeStart}–{rangeEnd} / {total}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" /> Oldingi
+              </Button>
+              <span className="text-sm tabular-nums">
+                {page + 1} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              >
+                Keyingi <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       <PersonForm

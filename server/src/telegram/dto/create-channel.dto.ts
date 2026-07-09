@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -9,6 +10,9 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
+
+/** notifications dispatch qo'llab-quvvatlaydigan event turlari. */
+const EVENT_TYPES = ['late', 'blacklist', 'agent_offline'];
 
 export class CreateTelegramChannelDto {
   @ApiProperty({
@@ -19,7 +23,8 @@ export class CreateTelegramChannelDto {
   })
   @IsString()
   @Matches(/^-?\d+$/, { message: 'chatId raqamli bo\'lishi shart (masalan -1001234567890)' })
-  @Length(1, 32)
+  // bigint (max 19 raqam) — 20 belgi ishorasi bilan. 32 overflow → 500 berardi.
+  @Length(1, 20)
   chatId!: string;
 
   @ApiPropertyOptional({ example: 'Hikvision Alerts' })
@@ -46,7 +51,10 @@ export class CreateTelegramChannelDto {
   })
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
+  @IsIn(EVENT_TYPES, {
+    each: true,
+    message: `enabledEvents faqat quyidagilar bo'lishi mumkin: ${EVENT_TYPES.join(', ')}`,
+  })
   enabledEvents?: string[];
 
   @ApiPropertyOptional({ default: true })

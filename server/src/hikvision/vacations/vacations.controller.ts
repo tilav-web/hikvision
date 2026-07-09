@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { VacationsService } from './vacations.service';
 import { CreateVacationDto } from './dto/create-vacation.dto';
+import { UpdateVacationDto } from './dto/update-vacation.dto';
 import { Roles } from '../../auth/roles.decorator';
 import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 
@@ -35,23 +36,23 @@ export class VacationsController {
   }
 
   @Post()
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   create(@CurrentUser() current: AuthUser, @Body() dto: CreateVacationDto) {
     return this.service.create(current, dto);
   }
 
   @Patch(':id')
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   update(
     @CurrentUser() current: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: Partial<CreateVacationDto>,
+    @Body() dto: UpdateVacationDto,
   ) {
     return this.service.update(current, id, dto);
   }
 
   @Delete(':id')
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
     @CurrentUser() current: AuthUser,

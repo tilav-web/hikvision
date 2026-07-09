@@ -44,7 +44,7 @@ export function DashboardPage() {
 
   const { data: companies } = useCompanies();
   const { data: devices } = useDevices();
-  const { data: personsData } = usePersons();
+  const { data: personsData } = usePersons({ take: 1 }); // faqat total kerak
   const today = todayStr();
   const { data: stats } = useAttendanceStats({ from: today, to: today });
   const { data: eventsData } = useEvents({ take: 8 });

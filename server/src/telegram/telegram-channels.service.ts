@@ -12,6 +12,7 @@ import { TelegramBotService } from './telegram-bot.service';
 import { CompanyEntity } from '../companies/company.entity';
 import { AuthUser } from '../auth/current-user.decorator';
 import { CreateTelegramChannelDto } from './dto/create-channel.dto';
+import { UpdateTelegramChannelDto } from './dto/update-channel.dto';
 import { testTemplate } from './templates';
 
 /**
@@ -132,7 +133,7 @@ export class TelegramChannelsService {
   async update(
     current: AuthUser,
     id: string,
-    dto: Partial<CreateTelegramChannelDto>,
+    dto: UpdateTelegramChannelDto,
   ): Promise<TelegramChannelEntity> {
     const ch = await this.findOne(current, id);
     if (dto.title !== undefined) ch.title = dto.title || null;

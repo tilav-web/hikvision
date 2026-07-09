@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { Person } from './types';
 
@@ -30,13 +35,26 @@ export function usePerson(id: string | null) {
   });
 }
 
-export function usePersons(opts: { q?: string; companyId?: string } = {}) {
+export function usePersons(
+  opts: { q?: string; companyId?: string; skip?: number; take?: number } = {},
+) {
   return useQuery({
-    queryKey: ['persons', opts.q ?? '', opts.companyId ?? 'all'],
+    queryKey: [
+      'persons',
+      opts.q ?? '',
+      opts.companyId ?? 'all',
+      opts.skip ?? 0,
+      opts.take ?? 50,
+    ],
+    // Sahifa/qidiruv o'zgarganda jadval bo'shab ketmasin — avvalgi sahifani
+    // yangi ma'lumot kelguncha ushlab turadi.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (opts.q) params.q = opts.q;
       if (opts.companyId) params.companyId = opts.companyId;
+      if (opts.skip != null) params.skip = String(opts.skip);
+      if (opts.take != null) params.take = String(opts.take);
       const { data } = await api.get<{ items: Person[]; total: number }>(
         '/hikvision/persons',
         { params },

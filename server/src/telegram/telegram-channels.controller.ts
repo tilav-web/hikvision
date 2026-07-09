@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { TelegramChannelsService } from './telegram-channels.service';
 import { TelegramBotService } from './telegram-bot.service';
 import { CreateTelegramChannelDto } from './dto/create-channel.dto';
+import { UpdateTelegramChannelDto } from './dto/update-channel.dto';
 import { Roles } from '../auth/roles.decorator';
 import { AuthUser, CurrentUser } from '../auth/current-user.decorator';
 
@@ -67,7 +68,7 @@ export class TelegramChannelsController {
   update(
     @CurrentUser() current: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: Partial<CreateTelegramChannelDto>,
+    @Body() dto: UpdateTelegramChannelDto,
   ) {
     return this.service.update(current, id, dto);
   }

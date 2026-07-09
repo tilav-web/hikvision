@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -14,6 +14,8 @@ import { Public } from '../auth/public.decorator';
 @Controller('health')
 @SkipThrottle()
 export class HealthController {
+  private readonly logger = new Logger(HealthController.name);
+
   constructor(
     @InjectDataSource()
     private readonly ds: DataSource,
@@ -25,12 +27,12 @@ export class HealthController {
   async check() {
     const startedAt = Date.now();
     let dbOk = false;
-    let dbError: string | null = null;
     try {
       await this.ds.query('SELECT 1');
       dbOk = true;
     } catch (e) {
-      dbError = (e as Error).message;
+      // Xato detali autentifikatsiyasiz oshkor qilinmaydi — faqat server logida.
+      this.logger.error(`health DB check failed: ${(e as Error).message}`);
     }
     const status = dbOk ? 'ok' : 'degraded';
     return {
@@ -38,7 +40,7 @@ export class HealthController {
       timestamp: new Date().toISOString(),
       uptimeSec: Math.round(process.uptime()),
       checks: {
-        db: { ok: dbOk, error: dbError, latencyMs: Date.now() - startedAt },
+        db: { ok: dbOk, latencyMs: Date.now() - startedAt },
       },
     };
   }

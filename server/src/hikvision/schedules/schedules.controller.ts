@@ -25,7 +25,7 @@ export class SchedulesController {
   constructor(private readonly service: SchedulesService) {}
 
   @Get()
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   list(
     @CurrentUser() current: AuthUser,
     @Query('companyId') companyId?: string,
@@ -34,13 +34,13 @@ export class SchedulesController {
   }
 
   @Post()
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   create(@CurrentUser() current: AuthUser, @Body() dto: CreateScheduleDto) {
     return this.service.create(current, dto);
   }
 
   @Get(':id')
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   findOne(
     @CurrentUser() current: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -49,7 +49,7 @@ export class SchedulesController {
   }
 
   @Patch(':id')
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   update(
     @CurrentUser() current: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -59,7 +59,7 @@ export class SchedulesController {
   }
 
   @Delete(':id')
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
     @CurrentUser() current: AuthUser,

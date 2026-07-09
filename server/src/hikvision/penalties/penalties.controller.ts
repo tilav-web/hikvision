@@ -23,7 +23,7 @@ export class PenaltiesController {
   constructor(private readonly service: PenaltiesService) {}
 
   @Get()
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   list(
     @CurrentUser() current: AuthUser,
     @Query('companyId') companyId?: string,
@@ -36,13 +36,13 @@ export class PenaltiesController {
   }
 
   @Post()
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   create(@CurrentUser() current: AuthUser, @Body() dto: CreatePenaltyDto) {
     return this.service.create(current, dto);
   }
 
   @Delete(':id')
-  @Roles('company_admin')
+  @Roles('super_admin', 'company_admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
     @CurrentUser() current: AuthUser,
