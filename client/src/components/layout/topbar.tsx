@@ -1,4 +1,4 @@
-import { Sun, Moon, Monitor, LogOut, User as UserIcon } from 'lucide-react';
+import { Sun, Moon, Monitor, LogOut, User as UserIcon, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +22,7 @@ function initials(name: string): string {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
 }
 
-export function Topbar() {
+export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const themeMode = useThemeStore((s) => s.mode);
@@ -30,9 +30,20 @@ export function Topbar() {
   const navigate = useNavigate();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-(--color-border) bg-(--color-background)/80 px-6 backdrop-blur">
-      <div className="text-sm text-(--color-muted-foreground)">
-        Xush kelibsiz, <span className="text-(--color-foreground) font-medium">{user?.fullName}</span>
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-(--color-border) bg-(--color-background)/80 px-4 sm:px-6 backdrop-blur">
+      <div className="flex items-center gap-2 min-w-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          aria-label="Menyu"
+          onClick={onMenuClick}
+        >
+          <Menu />
+        </Button>
+        <div className="truncate text-sm text-(--color-muted-foreground)">
+          Xush kelibsiz, <span className="text-(--color-foreground) font-medium">{user?.fullName}</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
