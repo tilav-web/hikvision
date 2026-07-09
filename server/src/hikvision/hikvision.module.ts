@@ -15,6 +15,7 @@ import { DevicesService } from './devices/devices.service';
 import { DeviceSyncService } from './devices/device-sync.service';
 import { DevicesController } from './devices/devices.controller';
 import { PersonsService } from './persons/persons.service';
+import { PersonsImportService } from './persons/persons-import.service';
 import { PersonsController } from './persons/persons.controller';
 import { EventsService } from './events/events.service';
 import { EventsController } from './events/events.controller';
@@ -73,6 +74,7 @@ import { TelegramModule } from '../telegram/telegram.module';
     DevicesService,
     DeviceSyncService,
     PersonsService,
+    PersonsImportService,
     EventsService,
     EventsGateway,
     AgentsGateway,

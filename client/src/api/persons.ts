@@ -121,6 +121,30 @@ export function useSyncPerson() {
   });
 }
 
+export interface ImportResult {
+  created: Array<{ employeeNo: string; name: string }>;
+  skipped: Array<{ row: number; name: string; reason: string }>;
+}
+
+/** Hodimlarni Excel (.xlsx) fayldan ommaviy import. */
+export function useImportPersons() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { file: File; companyId?: string }) => {
+      const fd = new FormData();
+      fd.append('file', vars.file);
+      if (vars.companyId) fd.append('companyId', vars.companyId);
+      const { data } = await api.post<ImportResult>(
+        '/hikvision/persons/import',
+        fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['persons'] }),
+  });
+}
+
 export function useUploadFace() {
   const qc = useQueryClient();
   return useMutation({

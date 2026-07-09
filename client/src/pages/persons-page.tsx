@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, Trash2, RefreshCw, Search, IdCard, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, RefreshCw, Search, IdCard, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
   useCreatePerson,
   useDeletePerson,
+  useImportPersons,
   usePersons,
   useSyncPerson,
   useUpdatePerson,
@@ -73,6 +74,26 @@ export function PersonsPage() {
   const uploadFace = useUploadFace();
   const remove = useDeletePerson();
   const sync = useSyncPerson();
+  const importPersons = useImportPersons();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // bir xil faylni qayta tanlash mumkin bo'lsin
+    if (!file) return;
+    try {
+      const res = await importPersons.mutateAsync({ file });
+      if (res.skipped.length === 0) {
+        toast.success(`${res.created.length} ta hodim import qilindi`);
+      } else {
+        toast.warning(
+          `${res.created.length} qo'shildi, ${res.skipped.length} o'tkazildi (masalan: ${res.skipped[0]?.reason})`,
+        );
+      }
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
+    }
+  };
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Person | null>(null);
@@ -153,14 +174,32 @@ export function PersonsPage() {
         title="Hodimlar"
         description="Yuz, karta, PIN — kirish ruxsatlari"
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            <Plus /> Yangi hodim
-          </Button>
+          <div className="flex gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={onImportFile}
+            />
+            <Button
+              variant="outline"
+              onClick={() => fileRef.current?.click()}
+              disabled={importPersons.isPending}
+              title="Excel (.xlsx): Ism, Tabel, Karta, PIN, Telefon, Lavozim, Maosh"
+            >
+              <Upload />
+              {importPersons.isPending ? 'Import...' : 'Excel import'}
+            </Button>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <Plus /> Yangi hodim
+            </Button>
+          </div>
         }
       />
 

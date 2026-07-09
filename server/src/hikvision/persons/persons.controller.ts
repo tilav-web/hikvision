@@ -22,6 +22,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { PersonsService } from './persons.service';
+import { PersonsImportService } from './persons-import.service';
 import { DeviceSyncService } from '../devices/device-sync.service';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
@@ -34,8 +35,36 @@ import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 export class PersonsController {
   constructor(
     private readonly service: PersonsService,
+    private readonly importService: PersonsImportService,
     private readonly deviceSync: DeviceSyncService,
   ) {}
+
+  @Post('import')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary:
+      'Hodimlarni Excel (.xlsx) fayldan ommaviy import (ustunlar: Ism, Tabel, Karta, PIN, Telefon, Lavozim, Maosh)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+      required: ['file'],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  async import(
+    @CurrentUser() current: AuthUser,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('companyId') companyId?: string,
+  ) {
+    if (!file) throw new BadRequestException('Fayl yuklanmadi');
+    const cid = current.role === 'company_admin' ? current.companyId! : companyId;
+    return this.importService.importXlsx(current, file.buffer, cid);
+  }
 
   @Get(':id/device-status')
   @Roles('super_admin', 'company_admin')
