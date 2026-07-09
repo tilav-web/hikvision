@@ -24,7 +24,7 @@ interface StreamState {
  *   2. `stream:subscribe { deviceId, fps }` emit — server bu deviceId
  *      uchun birinchi obunachi bo'lsa agentga `startStream` yuboradi
  *   3. Agent har yangi kadrni server'ga push qiladi (agent:streamFrame),
- *      server `stream:frame { deviceId, imageBase64 }`'ni shu room'ga emit
+ *      server `stream:frame { deviceId, image }`'ni (binar) shu room'ga emit
  *   4. Hookni o'chirilganda `stream:unsubscribe` emit — oxirgi obunachi
  *      bo'lsa agent stream'ni to'xtatadi
  *
@@ -64,13 +64,10 @@ export function useDeviceStream(
       transports: ['websocket', 'polling'],
     });
 
-    const onFrame = (payload: { deviceId: string; imageBase64: string }) => {
-      if (aborted || payload.deviceId !== deviceId) return;
-      // base64 → Blob → object URL. Avvalgi URL'ni revoke qilamiz.
-      const bin = atob(payload.imageBase64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const blob = new Blob([bytes], { type: 'image/jpeg' });
+    const onFrame = (payload: { deviceId: string; image: ArrayBuffer }) => {
+      if (aborted || payload.deviceId !== deviceId || !payload.image) return;
+      // Binar kadr (ArrayBuffer) → Blob → object URL. Avvalgi URL'ni revoke qilamiz.
+      const blob = new Blob([payload.image], { type: 'image/jpeg' });
       const url = URL.createObjectURL(blob);
       if (lastUrlRef.current) URL.revokeObjectURL(lastUrlRef.current);
       lastUrlRef.current = url;

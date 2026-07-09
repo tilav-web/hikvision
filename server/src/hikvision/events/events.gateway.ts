@@ -232,10 +232,11 @@ export class EventsGateway
    * AgentsGateway tomonidan chaqiriladi: agent yangi kadr push qilganda
    * shu deviceId room'idagi barcha brauzerlarga emit qilamiz.
    */
-  broadcastStreamFrame(deviceId: string, imageBase64: string): void {
+  broadcastStreamFrame(deviceId: string, image: Buffer): void {
+    // Binar kadr — brauzerga ArrayBuffer sifatida yetadi (base64 emas).
     this.server
       .to(streamRoom(deviceId))
-      .emit('stream:frame', { deviceId, imageBase64 });
+      .emit('stream:frame', { deviceId, image });
   }
 
   /**

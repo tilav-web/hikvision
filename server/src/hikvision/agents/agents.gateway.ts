@@ -268,14 +268,12 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('agent:streamFrame')
   onStreamFrame(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { deviceId: string; imageBase64: string },
+    @MessageBody() payload: { deviceId: string; image: Buffer },
   ): void {
     const agentId = (client.data as any)?.agentId as string | undefined;
-    if (!agentId || !payload?.deviceId || !payload.imageBase64) return;
-    this.eventsGateway.broadcastStreamFrame(
-      payload.deviceId,
-      payload.imageBase64,
-    );
+    if (!agentId || !payload?.deviceId || !payload.image) return;
+    // Kadr binar (Buffer) — socket.io Redis adapter ham binarni qo'llab-quvvatlaydi.
+    this.eventsGateway.broadcastStreamFrame(payload.deviceId, payload.image);
   }
 
   @SubscribeMessage('agent:event')

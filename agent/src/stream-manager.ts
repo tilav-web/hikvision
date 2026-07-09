@@ -1,8 +1,11 @@
 import { IsapiClient } from './isapi/isapi-client';
 import { logger } from './logger';
 
-/** Agent har yangi kadr olganda chaqiriladi — server-link'ga forward qilish uchun. */
-export type FrameCallback = (deviceId: string, base64: string) => void;
+/**
+ * Agent har yangi kadr olganda chaqiriladi — server-link'ga forward qilish uchun.
+ * Kadr binar (Buffer) sifatida uzatiladi — base64'ga nisbatan ~33% kam trafik.
+ */
+export type FrameCallback = (deviceId: string, frame: Buffer) => void;
 
 interface StreamSession {
   /** ISAPI client (qayta foydalaniladi) */
@@ -178,8 +181,10 @@ export class StreamManager {
       if (this.sessions.get(deviceId) !== session) return;
       session.latestFrame = buf;
       session.lastError = null;
-      // Yangi kadr — server'ga push (events kanali orqali brauzerlarga tarqatadi)
-      this.onFrame?.(deviceId, buf.toString('base64'));
+      // Yangi kadr — server'ga push (events kanali orqali brauzerlarga tarqatadi).
+      // MUHIM: lastTouch bu yerda YANGILANMAYDI — idle watchdog server keepalive
+      // orqali oziqlanadi (Y1). Aks holda server o'lса ham agent abadiy poll qiladi.
+      this.onFrame?.(deviceId, buf);
     } catch (e) {
       if (this.sessions.get(deviceId) !== session) return;
       session.lastError = (e as Error).message;

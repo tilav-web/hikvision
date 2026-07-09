@@ -35,8 +35,8 @@ async function main(): Promise<void> {
   // StreamManager → har yangi kadrni server'ga push qiladi (link.forwardFrame)
   // Server uni events kanali orqali subscribe bo'lgan brauzerlarga tarqatadi.
   let link!: ServerLink;
-  const streams = new StreamManager((deviceId, base64) =>
-    link.forwardFrame(deviceId, base64),
+  const streams = new StreamManager((deviceId, frame) =>
+    link.forwardFrame(deviceId, frame),
   );
   const handler = new CommandHandler(pool, sadp, streams);
   link = new ServerLink(config, pool, handler);

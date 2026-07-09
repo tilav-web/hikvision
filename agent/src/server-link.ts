@@ -98,10 +98,14 @@ export class ServerLink {
     this.socket?.emit('agent:event', { deviceId, event });
   }
 
-  /** Stream session'da har yangi kadrni server'ga uzatish (browser broadcast'i uchun). */
-  forwardFrame(deviceId: string, base64: string): void {
+  /**
+   * Stream session'da har yangi kadrni server'ga uzatish (browser broadcast'i uchun).
+   * Kadr binar (Buffer) yuboriladi — socket.io uni binar frame sifatida uzatadi
+   * (base64'ga nisbatan ~33% kam trafik).
+   */
+  forwardFrame(deviceId: string, frame: Buffer): void {
     if (!this.socket || !this.connected) return;
-    this.socket.emit('agent:streamFrame', { deviceId, imageBase64: base64 });
+    this.socket.emit('agent:streamFrame', { deviceId, image: frame });
   }
 
   isConnected(): boolean {
