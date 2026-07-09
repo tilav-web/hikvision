@@ -15,6 +15,7 @@ import { AuthUser } from '../../auth/current-user.decorator';
 import { HolidaysService } from '../holidays/holidays.service';
 import { VacationsService } from '../vacations/vacations.service';
 import { NotificationsService } from '../../telegram/notifications.service';
+import { CacheService } from '../../redis/cache.service';
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0');
@@ -129,7 +130,15 @@ export class AttendanceService {
     private readonly holidays: HolidaysService,
     private readonly vacations: VacationsService,
     private readonly notifications: NotificationsService,
+    private readonly cache: CacheService,
   ) {}
+
+  /** Stats kesh kaliti uchun kompaniya doirasi. */
+  private statsScope(current: AuthUser, companyId?: string): string {
+    return current.role === 'company_admin'
+      ? (current.companyId ?? 'na')
+      : (companyId ?? 'all');
+  }
 
   async list(opts: {
     current: AuthUser;
@@ -724,6 +733,8 @@ export class AttendanceService {
     from?: string;
     to?: string;
   }) {
+    const cacheKey = `attn:stats:${this.statsScope(opts.current, opts.companyId)}:${opts.from ?? ''}:${opts.to ?? ''}`;
+    return this.cache.getOrSet(cacheKey, 20, async () => {
     const where: any = {};
     if (opts.current.role === 'company_admin') {
       where.companyId = opts.current.companyId;
@@ -757,6 +768,7 @@ export class AttendanceService {
       totalLateMinutes,
       totalLunchOverstay,
     };
+    });
   }
 
   /**
@@ -768,6 +780,8 @@ export class AttendanceService {
     from?: string;
     to?: string;
   }) {
+    const cacheKey = `attn:perPerson:${this.statsScope(opts.current, opts.companyId)}:${opts.from ?? ''}:${opts.to ?? ''}`;
+    return this.cache.getOrSet(cacheKey, 20, async () => {
     const where: any = {};
     if (opts.current.role === 'company_admin') {
       where.companyId = opts.current.companyId;
@@ -820,6 +834,7 @@ export class AttendanceService {
     return [...map.values()].sort(
       (a, b) => b.totalLateMinutes - a.totalLateMinutes,
     );
+    });
   }
 
   /**
@@ -831,6 +846,8 @@ export class AttendanceService {
     from?: string;
     to?: string;
   }) {
+    const cacheKey = `attn:perDay:${this.statsScope(opts.current, opts.companyId)}:${opts.from ?? ''}:${opts.to ?? ''}`;
+    return this.cache.getOrSet(cacheKey, 20, async () => {
     const where: any = {};
     if (opts.current.role === 'company_admin') {
       where.companyId = opts.current.companyId;
@@ -871,6 +888,7 @@ export class AttendanceService {
       day.totalLateMinutes += r.lateMinutes;
     }
     return [...map.values()];
+    });
   }
 }
 

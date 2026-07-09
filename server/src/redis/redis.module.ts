@@ -8,9 +8,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { redisConnection } from '../config/redis.config';
+import { CacheService } from './cache.service';
+import { REDIS_CLIENT } from './redis.constants';
 
-/** Umumiy Redis client injection tokeni (blocklist, cache, health va h.k.). */
-export const REDIS_CLIENT = 'REDIS_CLIENT';
+// Token alohida faylda (redis.constants) — circular import bo'lmasin.
+// Backward-compat: mavjud importlar redis.module'dan olishda davom etadi.
+export { REDIS_CLIENT } from './redis.constants';
 
 /**
  * Umumiy ioredis client. BullMQ'nikidan farqli — bu tez-fail:
@@ -36,8 +39,8 @@ const redisProvider: Provider = {
 
 @Global()
 @Module({
-  providers: [redisProvider],
-  exports: [REDIS_CLIENT],
+  providers: [redisProvider, CacheService],
+  exports: [REDIS_CLIENT, CacheService],
 })
 export class RedisModule implements OnModuleDestroy {
   constructor(@Inject(REDIS_CLIENT) private readonly client: Redis) {}
