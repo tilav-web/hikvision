@@ -17,6 +17,7 @@ import { CreateDeviceDto } from './dto/create-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
 import { AgentsGateway } from '../agents/agents.gateway';
 import { CompaniesService } from '../../companies/companies.service';
+import { AuditService } from '../../audit/audit.service';
 
 @Injectable()
 export class DevicesService {
@@ -31,6 +32,7 @@ export class DevicesService {
     private readonly cfg: ConfigService,
     private readonly agentsGateway: AgentsGateway,
     private readonly companies: CompaniesService,
+    private readonly audit: AuditService,
   ) {}
 
   // ───────── CRUD ─────────
@@ -91,6 +93,14 @@ export class DevicesService {
       location: dto.location ?? null,
     });
     const saved = await this.repo.save(entity);
+    this.audit.log({
+      current,
+      action: 'device.create',
+      entityType: 'device',
+      entityId: saved.id,
+      companyId: saved.companyId,
+      details: { name: saved.name, host: saved.host },
+    });
 
     // Aparatdan info olib, modelni saqlaymiz (ulanmasa ham qabul qilamiz)
     this.tryEnrichDeviceInfo(saved.id).catch((e) =>
@@ -189,6 +199,14 @@ export class DevicesService {
     const agentId = d.agentId;
     this.invalidateClient(id);
     await this.repo.remove(d);
+    this.audit.log({
+      current,
+      action: 'device.delete',
+      entityType: 'device',
+      entityId: id,
+      companyId: d.companyId,
+      details: { name: d.name, host: d.host },
+    });
     if (agentId) {
       this.agentsGateway.pushDeviceUpdate(agentId).catch(() => undefined);
     }
@@ -305,12 +323,29 @@ export class DevicesService {
     await this.runOnDevice(device, 'openDoor', { doorNo }, async () => {
       await (await this.getClient(id)).openDoor(doorNo);
     });
+    // Masofadan eshik ochish — eng muhim audit hodisasi.
+    this.audit.log({
+      current,
+      action: 'door.open',
+      entityType: 'device',
+      entityId: id,
+      companyId: device.companyId,
+      details: { deviceName: device.name, doorNo },
+    });
   }
 
   async reboot(current: AuthUser, id: string): Promise<void> {
     const device = await this.findOne(current, id);
     await this.runOnDevice(device, 'reboot', {}, async () => {
       await (await this.getClient(id)).reboot();
+    });
+    this.audit.log({
+      current,
+      action: 'device.reboot',
+      entityType: 'device',
+      entityId: id,
+      companyId: device.companyId,
+      details: { deviceName: device.name },
     });
   }
 

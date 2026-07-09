@@ -20,6 +20,7 @@ import { UsersModule } from './users/users.module';
 import { UsersService } from './users/users.service';
 import { HealthController } from './health/health.controller';
 import { TelegramModule } from './telegram/telegram.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { TelegramModule } from './telegram/telegram.module';
       }),
     }),
     RedisModule,
+    AuditModule,
     UsersModule,
     AuthModule,
     CompaniesModule,

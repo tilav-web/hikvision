@@ -21,6 +21,7 @@ import { IsapiUserInfo } from '../isapi/isapi.types';
 import { AgentsGateway } from '../agents/agents.gateway';
 import { AuthUser } from '../../auth/current-user.decorator';
 import { CompaniesService } from '../../companies/companies.service';
+import { AuditService } from '../../audit/audit.service';
 
 const FACE_DIR = path.join(process.cwd(), 'uploads', 'faces');
 
@@ -38,6 +39,7 @@ export class PersonsService {
     private readonly devicesService: DevicesService,
     private readonly agentsGateway: AgentsGateway,
     private readonly companies: CompaniesService,
+    private readonly audit: AuditService,
   ) {}
 
   // ───────── CRUD ─────────
@@ -141,6 +143,14 @@ export class PersonsService {
         ),
       );
     }
+    this.audit.log({
+      current,
+      action: 'person.create',
+      entityType: 'person',
+      entityId: saved.id,
+      companyId: saved.companyId,
+      details: { name: saved.name, employeeNo: saved.employeeNo },
+    });
     return saved;
   }
 
@@ -400,7 +410,18 @@ export class PersonsService {
     if (p.faceImagePath) {
       await fs.unlink(p.faceImagePath).catch(() => undefined);
     }
+    const employeeNo = p.employeeNo;
+    const name = p.name;
+    const companyId = p.companyId;
     await this.personRepo.remove(p);
+    this.audit.log({
+      current,
+      action: 'person.delete',
+      entityType: 'person',
+      entityId: id,
+      companyId,
+      details: { name, employeeNo, removedFromDevices: removedFrom.length },
+    });
     return { removedFrom, failures };
   }
 

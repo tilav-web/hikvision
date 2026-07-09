@@ -14,6 +14,7 @@ import {
   Plane,
   BarChart3,
   MessagesSquare,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -37,6 +38,7 @@ const items: NavItem[] = [
   { to: '/attendance', icon: CalendarCheck, label: 'Davomat' },
   { to: '/statistics', icon: BarChart3, label: 'Statistika' },
   { to: '/events', icon: Activity, label: 'Hodisalar' },
+  { to: '/audit-logs', icon: ScrollText, label: 'Audit jurnali' },
   { to: '/telegram-channels', icon: MessagesSquare, label: 'Telegram kanallar' },
   // Faqat company admin: kampaniya ichki ish jarayonlari
   { to: '/schedules', icon: CalendarClock, label: 'Jadval', roles: ['company_admin'] },
