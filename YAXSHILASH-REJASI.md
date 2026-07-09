@@ -102,6 +102,7 @@ Zaif tomonlari (quyida batafsil): **testlar umuman yo'q (0 ta)**, **migratsiyala
 8. **Mobil navigatsiya (P12)** — hamburger + chap-drawer (md'dan past); navItems umumiy modul; responsive padding. ✅ tsc + build.
 9. **Kamera ko'p-oynali panel (Bosqich 2)** — `useMultiDeviceStream` (bitta socket, N kamera — L7 yopildi); `/cameras` grid (2/3 ustun); per-device holat. ✅ jonli: bitta socket 2 qurilma, routing aralashmadi.
 10. **Qurilma offline-sweeper** — BullMQ har 2 daqiqada eskirgan qurilmalarni offline belgilaydi (heartbeat to'xtasa) + `device:status` emit; qo'lda trigger endpoint. ✅ jonli: 10daq eskirgan qurilma → isOnline=false.
+11. **Refresh-token rotatsiyasi (P5+)** — qisqa access (15m) + Redis refresh whitelist (rotatsiya + reuse-detection); `/auth/refresh`; JwtStrategy refresh'ni access sifatida rad etadi; client single-flight avtomatik refresh. ✅ jonli: rotatsiya, reuse→401, access=15m.
 
 > **Keyingi katta qadam — kamera Bosqich 3 (WebRTC jonli video):** RTSP→WebRTC (go2rtc/mediamtx agentda) + signaling. Bu haqiqiy past-latency video beradi, lekin **haqiqiy RTSP kamera** bilan tekshirilishi kerak (mock bilan to'liq ishonch bo'lmaydi) — alohida, jihozli sessiya talab qiladi.
 >
