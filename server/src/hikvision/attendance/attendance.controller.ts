@@ -1,8 +1,19 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { Response } from 'express';
 import { AttendanceService } from './attendance.service';
+import { AttendanceExportService } from './attendance-export.service';
 import {
   ATTENDANCE_QUEUE,
   FINALIZE_DAY_JOB,
@@ -17,8 +28,39 @@ import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 export class AttendanceController {
   constructor(
     private readonly service: AttendanceService,
+    private readonly exportService: AttendanceExportService,
     @InjectQueue(ATTENDANCE_QUEUE) private readonly queue: Queue,
   ) {}
+
+  @Get('export')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary: 'Davomat hisobotini Excel (.xlsx) sifatida yuklab olish',
+  })
+  async export(
+    @CurrentUser() current: AuthUser,
+    @Res() res: Response,
+    @Query('companyId') companyId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const buf = await this.exportService.perPersonXlsx({
+      current,
+      companyId,
+      from,
+      to,
+    });
+    const suffix = [from, to].filter(Boolean).join('_') || 'hammasi';
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="davomat-${suffix}.xlsx"`,
+    );
+    res.send(buf);
+  }
 
   @Post('finalize-day')
   @Roles('super_admin', 'company_admin')

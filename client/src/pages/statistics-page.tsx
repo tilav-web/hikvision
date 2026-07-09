@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import {
   TrendingDown,
   TrendingUp,
   Trophy,
   AlertTriangle,
   Calendar,
+  Download,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,10 +30,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  downloadAttendanceExcel,
   useAttendanceStats,
   usePerDayStats,
   usePerPersonStats,
 } from '@/api/attendance';
+import { getApiErrorMessage } from '@/lib/api';
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0');
@@ -60,6 +65,18 @@ function formatHours(minutes: number): string {
 export function StatisticsPage() {
   const [from, setFrom] = useState(firstOfMonth());
   const [to, setTo] = useState(todayStr());
+  const [downloading, setDownloading] = useState(false);
+
+  const onDownload = async () => {
+    setDownloading(true);
+    try {
+      await downloadAttendanceExcel({ from, to });
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const { data: stats } = useAttendanceStats({ from, to });
   const { data: perPerson } = usePerPersonStats({ from, to });
@@ -110,6 +127,15 @@ export function StatisticsPage() {
               className="w-44"
             />
           </div>
+          <Button
+            variant="outline"
+            onClick={onDownload}
+            disabled={downloading}
+            className="ml-auto"
+          >
+            <Download className="h-4 w-4" />
+            {downloading ? 'Yuklanmoqda...' : 'Excel yuklab olish'}
+          </Button>
         </div>
       </Card>
 

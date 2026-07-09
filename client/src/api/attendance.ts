@@ -116,6 +116,34 @@ export function usePerDayStats(opts: {
   });
 }
 
+/**
+ * Davomat hisobotini Excel (.xlsx) qilib yuklab olish.
+ * Server fayl (blob) qaytaradi — brauzerda yuklab olish tetiklanadi.
+ */
+export async function downloadAttendanceExcel(opts: {
+  from?: string;
+  to?: string;
+  companyId?: string;
+}): Promise<void> {
+  const params: Record<string, string> = {};
+  if (opts.from) params.from = opts.from;
+  if (opts.to) params.to = opts.to;
+  if (opts.companyId) params.companyId = opts.companyId;
+  const res = await api.get('/hikvision/attendance/export', {
+    params,
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const suffix = [opts.from, opts.to].filter(Boolean).join('_') || 'hammasi';
+  a.download = `davomat-${suffix}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** Bitta attendance kuni uchun event timeline (kirish/chiqish ro'yxati). */
 export function useAttendanceDayEvents(attendanceId: string | null) {
   return useQuery({

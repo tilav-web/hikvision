@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   Injectable,
   PlainLiteralObject,
+  StreamableFile,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -34,9 +35,13 @@ export class RoleSerializerInterceptor extends ClassSerializerInterceptor {
     return next
       .handle()
       .pipe(
-        map((res: PlainLiteralObject | Array<PlainLiteralObject>) =>
-          this.serialize(res, options),
-        ),
+        map((res: PlainLiteralObject | Array<PlainLiteralObject>) => {
+          // Fayl/oqim va binar javoblar serializatsiya qilinmaydi (buzilmasin).
+          if (res instanceof StreamableFile || Buffer.isBuffer(res)) {
+            return res;
+          }
+          return this.serialize(res, options);
+        }),
       );
   }
 }

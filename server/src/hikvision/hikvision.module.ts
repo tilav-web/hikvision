@@ -25,6 +25,7 @@ import { AgentsController } from './agents/agents.controller';
 import { SchedulesService } from './schedules/schedules.service';
 import { SchedulesController } from './schedules/schedules.controller';
 import { AttendanceService } from './attendance/attendance.service';
+import { AttendanceExportService } from './attendance/attendance-export.service';
 import { AttendanceController } from './attendance/attendance.controller';
 import {
   AttendanceProcessor,
@@ -78,6 +79,7 @@ import { TelegramModule } from '../telegram/telegram.module';
     AgentsService,
     SchedulesService,
     AttendanceService,
+    AttendanceExportService,
     AttendanceProcessor,
     PenaltiesService,
     HolidaysService,
