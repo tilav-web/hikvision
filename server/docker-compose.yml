@@ -1,0 +1,100 @@
+# ─────────────────────────────────────────────────────────────
+# Hikvision backend — to'liq stack (backend + PostgreSQL + Redis)
+#
+# Ishga tushirish:
+#   cd server
+#   cp .env.example .env      # qiymatlarni to'ldiring
+#   docker compose up -d --build
+#
+# Redis — BullMQ (fon-vazifalar), throttler storage va socket.io adapter uchun.
+# ─────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hik-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-hikvision}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-hikvision}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hik-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: hik-redis
+    restart: unless-stopped
+    # AOF persistence — BullMQ job'lari restart'da yo'qolmasin
+    command: redis-server --appendonly yes
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hik-net
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hik-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      # Konteyner ichida DB/Redis service nomi bilan topiladi
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-hikvision}
+      DB_SYNC: ${DB_SYNC:-false}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
+      SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-Super Admin}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      ISAPI_TIMEOUT_MS: ${ISAPI_TIMEOUT_MS:-15000}
+      TZ_DEFAULT: ${TZ_DEFAULT:-Asia/Tashkent}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    ports:
+      - '${PORT:-3000}:3000'
+    volumes:
+      # Yuz rasmlari / snapshotlar konteynerdan tashqarida saqlanadi
+      - uploads_data:/app/uploads
+    networks:
+      - hik-net
+
+volumes:
+  pg_data:
+  redis_data:
+  uploads_data:
+
+networks:
+  hik-net:
+    driver: bridge

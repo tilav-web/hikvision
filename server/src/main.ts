@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { RoleSerializerInterceptor } from './common/role-serializer.interceptor';
+import { RedisIoAdapter } from './common/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -56,6 +57,12 @@ async function bootstrap() {
   // Global serializer — `@Exclude()` maydonlarni (passwordHash, passwordEnc)
   // barcha javoblardan olib tashlaydi; apiToken'ni faqat super_admin ko'radi.
   app.useGlobalInterceptors(new RoleSerializerInterceptor(app.get(Reflector)));
+
+  // Socket.IO Redis adapter — WebSocket'larni instanslar aro tarqatadi
+  // (gorizontal masshtablash). Redis o'chiq bo'lsa ham app ishga tushadi.
+  const redisIoAdapter = new RedisIoAdapter(app);
+  await redisIoAdapter.connectToRedis();
+  app.useWebSocketAdapter(redisIoAdapter);
 
   // Swagger — faqat prod bo'lmaganda ochamiz (API sirtini oshkor qilmaslik uchun)
   if (!isProd) {

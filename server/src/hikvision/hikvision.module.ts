@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { DeviceEntity } from './entities/device.entity';
 import { PersonEntity } from './entities/person.entity';
 import { PersonDeviceEntity } from './entities/person-device.entity';
@@ -25,6 +26,10 @@ import { SchedulesService } from './schedules/schedules.service';
 import { SchedulesController } from './schedules/schedules.controller';
 import { AttendanceService } from './attendance/attendance.service';
 import { AttendanceController } from './attendance/attendance.controller';
+import {
+  AttendanceProcessor,
+  ATTENDANCE_QUEUE,
+} from './attendance/attendance.processor';
 import { PenaltiesService } from './penalties/penalties.service';
 import { PenaltiesController } from './penalties/penalties.controller';
 import { HolidaysService } from './holidays/holidays.service';
@@ -38,6 +43,7 @@ import { TelegramModule } from '../telegram/telegram.module';
   imports: [
     CompaniesModule,
     TelegramModule,
+    BullModule.registerQueue({ name: ATTENDANCE_QUEUE }),
     TypeOrmModule.forFeature([
       AgentEntity,
       DeviceEntity,
@@ -72,6 +78,7 @@ import { TelegramModule } from '../telegram/telegram.module';
     AgentsService,
     SchedulesService,
     AttendanceService,
+    AttendanceProcessor,
     PenaltiesService,
     HolidaysService,
     VacationsService,

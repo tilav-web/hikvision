@@ -4,8 +4,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { BullModule } from '@nestjs/bullmq';
+import Redis from 'ioredis';
 import { join } from 'path';
 import { typeOrmAsyncConfig } from './config/typeorm.config';
+import { redisConnection } from './config/redis.config';
 import { HikvisionModule } from './hikvision/hikvision.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
@@ -28,11 +32,25 @@ import { TelegramModule } from './telegram/telegram.module';
       serveRoot: '/uploads',
       serveStaticOptions: { index: false },
     }),
+    // BullMQ — fon-vazifalar (absent-cron, kelajakda sync/import/hisobot).
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        connection: redisConnection(cfg),
+      }),
+    }),
     // Default — global rate limit. Login uchun stricter alohida belgilanadi.
-    ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1_000, limit: 20 },
-      { name: 'medium', ttl: 60_000, limit: 200 },
-    ]),
+    // Storage Redis'da — restart'da nollanmaydi va bir necha instansda umumiy.
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        throttlers: [
+          { name: 'short', ttl: 1_000, limit: 20 },
+          { name: 'medium', ttl: 60_000, limit: 200 },
+        ],
+        storage: new ThrottlerStorageRedisService(new Redis(redisConnection(cfg))),
+      }),
+    }),
     UsersModule,
     AuthModule,
     CompaniesModule,

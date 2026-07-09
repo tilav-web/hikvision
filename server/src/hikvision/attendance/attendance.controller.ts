@@ -1,6 +1,13 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { AttendanceService } from './attendance.service';
+import {
+  ATTENDANCE_QUEUE,
+  FINALIZE_DAY_JOB,
+} from './attendance.processor';
+import { FinalizeDayDto } from './dto/finalize-day.dto';
 import { Roles } from '../../auth/roles.decorator';
 import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 
@@ -8,7 +15,30 @@ import { CurrentUser, AuthUser } from '../../auth/current-user.decorator';
 @ApiBearerAuth()
 @Controller('hikvision/attendance')
 export class AttendanceController {
-  constructor(private readonly service: AttendanceService) {}
+  constructor(
+    private readonly service: AttendanceService,
+    @InjectQueue(ATTENDANCE_QUEUE) private readonly queue: Queue,
+  ) {}
+
+  @Post('finalize-day')
+  @Roles('super_admin', 'company_admin')
+  @ApiOperation({
+    summary:
+      'Kunni yakunlash — kelmagan hodimlarga absent yozadi (fon-vazifaga qo\'shiladi). date bo\'sh bo\'lsa kechagi kun.',
+  })
+  async finalizeDay(
+    @CurrentUser() current: AuthUser,
+    @Body() dto: FinalizeDayDto,
+  ) {
+    const companyId =
+      current.role === 'company_admin' ? current.companyId! : undefined;
+    await this.queue.add(
+      FINALIZE_DAY_JOB,
+      { date: dto.date, companyId },
+      { removeOnComplete: true, removeOnFail: 50 },
+    );
+    return { queued: true, date: dto.date ?? 'yesterday' };
+  }
 
   @Get()
   @Roles('super_admin', 'company_admin')

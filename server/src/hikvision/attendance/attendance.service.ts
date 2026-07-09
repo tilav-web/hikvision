@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import { Between, In, IsNull, Not, Repository } from 'typeorm';
 import { AttendanceEntity } from '../entities/attendance.entity';
 import { AccessEventEntity } from '../entities/access-event.entity';
 import { PersonEntity } from '../entities/person.entity';
@@ -258,6 +258,79 @@ export class AttendanceService {
         this.dayLocks.delete(key);
       }
     }
+  }
+
+  /**
+   * Kunni yakunlash — o'sha kunda event bo'lmagan (kelmagan) hodimlar uchun
+   * "absent" yozuvini yaratadi va ochiq qolgan kunlarni (currently_inside/partial)
+   * yopadi. Tungi cron (BullMQ) har kuni kechagi kun uchun chaqiradi, lekin
+   * mantiq shu yerda — kelajakda boshqa trigger (BullMQ worker, manual backfill)
+   * ham qayta ishlatishi mumkin.
+   *
+   * MUHIM: faqat schedule'i bor hodimlar va o'sha schedule bo'yicha ish kuni
+   * bo'lган sanalar uchun ishlaydi (dam olish kunlarida "absent" yozilmaydi).
+   * Bayram/ta'til recomputeDay ichida hisobga olinadi.
+   *
+   * @param companyId  faqat shu kampaniya (manual/company_admin uchun); bo'sh — barchasi
+   */
+  async finalizeDay(
+    date: string,
+    companyId?: string,
+  ): Promise<{ date: string; created: number; finalized: number; skipped: number }> {
+    const where: Record<string, any> = {
+      isActive: true,
+      scheduleId: Not(IsNull()),
+    };
+    if (companyId) where.companyId = companyId;
+    const persons = await this.personRepo.find({ where });
+    if (persons.length === 0) {
+      return { date, created: 0, finalized: 0, skipped: 0 };
+    }
+
+    const schedIds = [
+      ...new Set(persons.map((p) => p.scheduleId).filter((s): s is string => !!s)),
+    ];
+    const scheds = schedIds.length
+      ? await this.scheduleRepo.find({ where: { id: In(schedIds) } })
+      : [];
+    const schedMap = new Map(scheds.map((s) => [s.id, s]));
+
+    const targetDate = new Date(date + 'T00:00:00');
+    let created = 0;
+    let finalized = 0;
+    let skipped = 0;
+
+    for (const person of persons) {
+      const sched = person.scheduleId ? schedMap.get(person.scheduleId) : null;
+      if (!sched || !person.companyId) {
+        skipped++;
+        continue;
+      }
+      // Ish kuni bo'lmasa (dam olish) — o'tkazib yuboramiz.
+      if (!isWorkingDay(targetDate, sched.workingDays)) {
+        skipped++;
+        continue;
+      }
+      const existing = await this.repo.findOne({
+        where: { personId: person.id, date },
+      });
+      try {
+        await this.recomputeDay(person.companyId, person, date);
+        if (existing) finalized++;
+        else created++;
+      } catch (e) {
+        this.logger.warn(
+          `finalizeDay ${date} person=${person.id} xato: ${(e as Error).message}`,
+        );
+        skipped++;
+      }
+    }
+
+    this.logger.log(
+      `📅 finalizeDay ${date}${companyId ? ` (company=${companyId})` : ''}: ` +
+        `${created} yaratildi, ${finalized} yakunlandi, ${skipped} o'tkazildi`,
+    );
+    return { date, created, finalized, skipped };
   }
 
   private async recomputeDayInternal(
