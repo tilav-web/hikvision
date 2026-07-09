@@ -100,8 +100,9 @@ Zaif tomonlari (quyida batafsil): **testlar umuman yo'q (0 ta)**, **migratsiyala
 6. **Hodimlarni Excel'dan ommaviy import** (yangi feature) — `.xlsx` parse (sarlavha mapping), har qator create (kvota/unikallik/avto-tabel); created/skipped xulosasi; persons sahifasida "Excel import" tugmasi. ✅ jonli: 3 qatorli xlsx → 3 hodim.
 7. **Audit log** (yangi feature) — `door.open`, device/person CRUD yoziladi (target kompaniyaga scoped); `GET /audit-logs` (tenant, paginatsiya); "Audit jurnali" sahifasi + nav. ✅ jonli: amallar yozildi, scoping to'g'ri.
 8. **Mobil navigatsiya (P12)** — hamburger + chap-drawer (md'dan past); navItems umumiy modul; responsive padding. ✅ tsc + build.
+9. **Kamera ko'p-oynali panel (Bosqich 2)** — `useMultiDeviceStream` (bitta socket, N kamera — L7 yopildi); `/cameras` grid (2/3 ustun); per-device holat. ✅ jonli: bitta socket 2 qurilma, routing aralashmadi.
 
-> Qolgan bandlar (O7–O13, P1/P4/P8–P14, kamera Bosqich 2 grid / Bosqich 3 WebRTC, refresh-token rotatsiyasi va h.k.) navbatda — ketma-ket davom etadi.
+> Qolgan bandlar (O7–O13, P1/P4/P8–P14, kamera Bosqich 3 WebRTC, refresh-token rotatsiyasi, device-offline sweeper va h.k.) navbatda — ketma-ket davom etadi.
 
 ---
 
