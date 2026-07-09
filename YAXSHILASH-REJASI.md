@@ -101,8 +101,11 @@ Zaif tomonlari (quyida batafsil): **testlar umuman yo'q (0 ta)**, **migratsiyala
 7. **Audit log** (yangi feature) — `door.open`, device/person CRUD yoziladi (target kompaniyaga scoped); `GET /audit-logs` (tenant, paginatsiya); "Audit jurnali" sahifasi + nav. ✅ jonli: amallar yozildi, scoping to'g'ri.
 8. **Mobil navigatsiya (P12)** — hamburger + chap-drawer (md'dan past); navItems umumiy modul; responsive padding. ✅ tsc + build.
 9. **Kamera ko'p-oynali panel (Bosqich 2)** — `useMultiDeviceStream` (bitta socket, N kamera — L7 yopildi); `/cameras` grid (2/3 ustun); per-device holat. ✅ jonli: bitta socket 2 qurilma, routing aralashmadi.
+10. **Qurilma offline-sweeper** — BullMQ har 2 daqiqada eskirgan qurilmalarni offline belgilaydi (heartbeat to'xtasa) + `device:status` emit; qo'lda trigger endpoint. ✅ jonli: 10daq eskirgan qurilma → isOnline=false.
 
-> Qolgan bandlar (O7–O13, P1/P4/P8–P14, kamera Bosqich 3 WebRTC, refresh-token rotatsiyasi, device-offline sweeper va h.k.) navbatda — ketma-ket davom etadi.
+> **Keyingi katta qadam — kamera Bosqich 3 (WebRTC jonli video):** RTSP→WebRTC (go2rtc/mediamtx agentda) + signaling. Bu haqiqiy past-latency video beradi, lekin **haqiqiy RTSP kamera** bilan tekshirilishi kerak (mock bilan to'liq ishonch bo'lmaydi) — alohida, jihozli sessiya talab qiladi.
+>
+> Qolgan verify qilinadigan bandlar: refresh-token rotatsiyasi, Redis cache (stats/dashboard), O7–O13, P1/P4/P8–P14.
 
 ---
 
