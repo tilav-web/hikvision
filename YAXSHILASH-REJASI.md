@@ -97,8 +97,9 @@ Zaif tomonlari (quyida batafsil): **testlar umuman yo'q (0 ta)**, **migratsiyala
 3. **JWT bekor qilish (P5)** — token `jti` + Redis blocklist; `POST /auth/logout` token'ni darhol bekor qiladi; client logout uni chaqiradi. ✅ jonli: logout'dan keyin o'sha token 401.
 4. **Kamera binar kadrlar** — base64 → Buffer/ArrayBuffer butun zanjirda (~33% kam trafik). ✅ jonli: server relay binar kadrni to'g'ri uzatadi, baytlar mos.
 5. **Kompaniya obuna/kvota nazorati (O2)** — muddati o'tgan kompaniya agenti bloklanadi; `maxDevices`/`maxEmployees` limitlari `create`da tekshiriladi. ✅ jonli: 2-qurilma/2-hodim 400, expired agent ulanolmadi.
+6. **Hodimlarni Excel'dan ommaviy import** (yangi feature) — `.xlsx` parse (sarlavha mapping), har qator create (kvota/unikallik/avto-tabel); created/skipped xulosasi; persons sahifasida "Excel import" tugmasi. ✅ jonli: 3 qatorli xlsx → 3 hodim.
 
-> Qolgan bandlar (O7–O13, P1/P4/P8–P14, kamera Bosqich 2/3 grid+WebRTC, bulk import, audit-log, mobil nav va h.k.) navbatda — ketma-ket davom etadi.
+> Qolgan bandlar (O7–O13, P1/P4/P8–P14, kamera Bosqich 2/3 grid+WebRTC, audit-log, mobil nav va h.k.) navbatda — ketma-ket davom etadi.
 
 ---
 
