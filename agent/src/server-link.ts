@@ -52,28 +52,44 @@ export class ServerLink {
       logger.error(`ulanish xatosi: ${err.message}`);
     });
 
-    this.socket.on('agent:welcome', (data: WelcomePayload) => {
+    this.socket.on('agent:welcome', (data: WelcomePayload | undefined) => {
+      const devices = Array.isArray(data?.devices) ? data!.devices : [];
       logger.info(
-        `🎉 ro'yxatdan o'tdi: agentId=${data.agentId}, devices=${data.devices?.length ?? 0}`,
+        `🎉 ro'yxatdan o'tdi: agentId=${data?.agentId ?? '?'}, devices=${devices.length}`,
       );
-      this.pool.upsert(data.devices ?? []);
+      this.pool.upsert(devices);
     });
 
-    this.socket.on('agent:devices:update', (data: { devices: ManagedDevice[] }) => {
-      logger.info(`🔄 qurilmalar ro'yxati yangilandi: ${data.devices.length}`);
-      this.pool.upsert(data.devices);
-    });
+    this.socket.on(
+      'agent:devices:update',
+      (data: { devices?: ManagedDevice[] } | undefined) => {
+        const devices = Array.isArray(data?.devices) ? data!.devices : [];
+        logger.info(`🔄 qurilmalar ro'yxati yangilandi: ${devices.length}`);
+        this.pool.upsert(devices);
+      },
+    );
 
     this.socket.on(
       'agent:cmd',
       async (cmd: CommandEnvelope, ack?: (r: CommandResult) => void) => {
-        const result = await this.handler.execute(cmd);
-        if (typeof ack === 'function') {
-          try {
-            ack(result);
-          } catch {}
+        // Handler o'zi ichida try/catch qiladi, lekin socket.io emit yo'lida
+        // kutilmagan xato butun jarayonni yiqitmasligi uchun bu yerda ham himoya.
+        try {
+          const result = await this.handler.execute(cmd);
+          if (typeof ack === 'function') {
+            try {
+              ack(result);
+            } catch {}
+          }
+          this.socket?.emit('agent:cmd:result', result);
+        } catch (e) {
+          logger.error(`agent:cmd ishlov berishda xato: ${(e as Error).message}`);
+          this.socket?.emit('agent:cmd:result', {
+            id: cmd?.id ?? 'unknown',
+            success: false,
+            error: (e as Error).message,
+          });
         }
-        this.socket?.emit('agent:cmd:result', result);
       },
     );
   }

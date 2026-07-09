@@ -41,7 +41,14 @@ export const typeOrmAsyncConfig: TypeOrmModuleAsyncOptions = {
     password: cfg.get<string>('DB_PASSWORD', 'postgres'),
     database: cfg.get<string>('DB_NAME', 'hikvision'),
     entities: allEntities,
-    synchronize: cfg.get<string>('DB_SYNC', 'false') === 'true',
+    // MUHIM: production'da synchronize HECH QACHON yoqilmaydi (DB_SYNC=true
+    // bo'lsa ham) — bu sxemani boot'da ALTER qilib ma'lumot yo'qotishi mumkin.
+    // Prod'da migratsiyalardan foydalaning: `npm run migration:run`.
+    synchronize:
+      cfg.get<string>('NODE_ENV') !== 'production' &&
+      cfg.get<string>('DB_SYNC', 'false') === 'true',
+    migrations: ['dist/migrations/*.js'],
+    migrationsTableName: 'migrations',
     logging: cfg.get<string>('NODE_ENV') === 'development' ? ['error', 'warn'] : ['error'],
     autoLoadEntities: true,
   }),

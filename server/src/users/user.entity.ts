@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Exclude } from 'class-transformer';
 import { CompanyEntity } from '../companies/company.entity';
 
 export type UserRole = 'super_admin' | 'company_admin';
@@ -21,6 +22,7 @@ export class UserEntity {
   @Column({ length: 160 })
   email!: string;
 
+  @Exclude()
   @Column({ type: 'text' })
   passwordHash!: string;
 

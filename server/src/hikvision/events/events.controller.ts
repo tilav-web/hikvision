@@ -12,6 +12,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
+import { SkipThrottle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiExcludeEndpoint,
@@ -40,6 +41,7 @@ export class EventsController {
    *   2) Content-Type: application/json — to'g'ridan-to'g'ri JSON
    */
   @Public()
+  @SkipThrottle()
   @Post('receiver')
   @HttpCode(200)
   @ApiExcludeEndpoint()

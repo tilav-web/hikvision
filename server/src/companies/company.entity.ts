@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Expose } from 'class-transformer';
 
 export type CompanyStatus = 'active' | 'disabled';
 
@@ -21,7 +22,12 @@ export class CompanyEntity {
   @Column({ length: 80 })
   slug!: string;
 
-  /** Mijoz agentlari shu token bilan ulanadi (bitta kampaniya = bitta token). */
+  /**
+   * Mijoz agentlari shu token bilan ulanadi (bitta kampaniya = bitta token).
+   * Maxfiy — faqat super_admin javoblarida serializatsiya qilinadi
+   * (RoleSerializerInterceptor "super_admin" group'ini uzatadi).
+   */
+  @Expose({ groups: ['super_admin'] })
   @Index({ unique: true })
   @Column({ length: 128 })
   apiToken!: string;

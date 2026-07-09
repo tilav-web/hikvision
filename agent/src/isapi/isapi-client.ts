@@ -11,6 +11,55 @@ import {
   ListenerHostConfig,
 } from './types';
 
+/** TZ'dagi UTC offset (daqiqada), DST'ni ham hisobga oladi. */
+function tzOffsetMinutes(tz: string, at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(at);
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  let hour = g('hour');
+  if (hour === 24) hour = 0;
+  const asUTC = Date.UTC(g('year'), g('month') - 1, g('day'), hour, g('minute'), g('second'));
+  return Math.round((asUTC - at.getTime()) / 60000);
+}
+
+/**
+ * Hikvision `System/time` uchun mahalliy devor vaqti + timeZone qatorini beradi.
+ * Hikvision teskari POSIX konvensiyasidan foydalanadi: UTC+5 → "CST-5:00:00".
+ */
+function hikTime(tz: string): { localTime: string; timeZone: string } {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(now);
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+  let hh = g('hour');
+  if (hh === '24') hh = '00';
+  const localTime = `${g('year')}-${g('month')}-${g('day')}T${hh}:${g('minute')}:${g('second')}`;
+
+  const offMin = tzOffsetMinutes(tz, now);
+  const sign = offMin >= 0 ? '-' : '+'; // Hikvision teskari belgisi
+  const abs = Math.abs(offMin);
+  const oh = Math.floor(abs / 60);
+  const om = abs % 60;
+  const timeZone = `CST${sign}${oh}:${String(om).padStart(2, '0')}:00`;
+  return { localTime, timeZone };
+}
+
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -218,9 +267,13 @@ export class IsapiClient {
   }
 
   async setTimeNow(): Promise<void> {
-    const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    // MUHIM: Hikvision `localTime` MAHALLIY devor vaqtini kutadi (UTC emas).
+    // Ilgari UTC instant yuborilardi → soat TZ offsetiga (UZ uchun 5s) siljib
+    // qolardi. Endi tanlangan TZ'dagi devor vaqtini va mos offsetni yuboramiz.
+    const tz = process.env.DEVICE_TZ || 'Asia/Tashkent';
+    const { localTime, timeZone } = hikTime(tz);
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Time><timeMode>manual</timeMode><localTime>${now}</localTime><timeZone>CST-5:00:00</timeZone></Time>`;
+<Time><timeMode>manual</timeMode><localTime>${localTime}</localTime><timeZone>${timeZone}</timeZone></Time>`;
     const res = await this.request('PUT', '/ISAPI/System/time', {
       data: xml,
       headers: { 'Content-Type': 'application/xml' },

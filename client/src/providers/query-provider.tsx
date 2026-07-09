@@ -1,7 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
-const queryClient = new QueryClient({
+/**
+ * Singleton — logout/401 paytida keshni tozalash uchun tashqaridan ham
+ * chaqiriladi (auth-store, api interceptor). Bu kompaniyalararo ma'lumot
+ * oqishini oldini oladi (bir brauzerda boshqa admin kirsa).
+ */
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,

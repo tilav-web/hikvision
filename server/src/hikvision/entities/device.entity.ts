@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Exclude } from 'class-transformer';
 import { PersonDeviceEntity } from './person-device.entity';
 import { AccessEventEntity } from './access-event.entity';
 import { AgentEntity } from './agent.entity';
@@ -59,6 +60,7 @@ export class DeviceEntity {
   @Column({ length: 64 })
   username!: string;
 
+  @Exclude()
   @Column({ type: 'text' })
   passwordEnc!: string;
 

@@ -1,4 +1,10 @@
-import { forwardRef, Inject, Logger } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ConnectedSocket,
@@ -32,7 +38,13 @@ const streamRoom = (deviceId: string) => `stream:${deviceId}`;
   namespace: '/events',
   cors: { origin: '*', credentials: true },
 })
-export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class EventsGateway
+  implements
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnModuleInit,
+    OnModuleDestroy
+{
   private readonly logger = new Logger(EventsGateway.name);
 
   @WebSocketServer()
@@ -42,9 +54,20 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * Stream subscription accountancy:
    *   socketSubs:  socketId → Set<deviceId>   (disconnect'da hammasini stop qilish uchun)
    *   deviceCount: deviceId → number          (faqat 0 → 1 va N → 0 da agentga buyruq)
+   *   deviceFps:   deviceId → fps             (keepalive qayta yuborish uchun saqlanadi)
    */
   private readonly socketSubs = new Map<string, Set<string>>();
   private readonly deviceCount = new Map<string, number>();
+  private readonly deviceFps = new Map<string, number>();
+
+  /**
+   * Stream keepalive: tomoshabin bor ekan, agentga davriy `startStream` qayta
+   * yuboriladi. Bu agent watchdog'ini tirik ushlaydi (push-rejimda agent o'zi
+   * "hali kuzatilyaptimi?"ni bilolmaydi) va agent qayta ishga tushsa stream'ni
+   * avtomatik tiklaydi. Interval agent idle-timeout'idan (90s) kichik.
+   */
+  private static readonly KEEPALIVE_MS = 30_000;
+  private keepaliveTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly cfg: ConfigService,
@@ -53,6 +76,35 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject(forwardRef(() => AgentsGateway))
     private readonly agentsGateway: AgentsGateway,
   ) {}
+
+  onModuleInit(): void {
+    this.keepaliveTimer = setInterval(
+      () => this.sendKeepalives(),
+      EventsGateway.KEEPALIVE_MS,
+    );
+    // Node process'ni jonli ushlab turmasin.
+    this.keepaliveTimer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.keepaliveTimer) clearInterval(this.keepaliveTimer);
+    this.keepaliveTimer = null;
+  }
+
+  /** Har aktiv (tomoshabinli) qurilma uchun agentga `startStream` qayta yuboradi. */
+  private sendKeepalives(): void {
+    for (const [deviceId, count] of this.deviceCount) {
+      if (count <= 0) continue;
+      const fps = this.deviceFps.get(deviceId) ?? 3;
+      this.agentsGateway
+        .sendCommand(deviceId, 'startStream', { fps }, 10_000)
+        .catch((e) =>
+          this.logger.debug(
+            `stream keepalive xato (${deviceId}): ${(e as Error).message}`,
+          ),
+        );
+    }
+  }
 
   handleConnection(client: Socket) {
     const token = (client.handshake.auth as { token?: string } | undefined)?.token;
@@ -139,6 +191,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const fps = Math.max(0.5, Math.min(10, payload.fps ?? 3));
     const cur = this.deviceCount.get(payload.deviceId) ?? 0;
     this.deviceCount.set(payload.deviceId, cur + 1);
+    this.deviceFps.set(payload.deviceId, fps); // keepalive uchun eslab qolamiz
 
     // Birinchi viewer (yoki fps yangilash) — agentga yuboramiz.
     try {
@@ -194,6 +247,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const next = Math.max(0, cur - 1);
     if (next === 0) {
       this.deviceCount.delete(deviceId);
+      this.deviceFps.delete(deviceId); // keepalive to'xtaydi
       this.agentsGateway
         .sendCommand(deviceId, 'stopStream', {}, 5_000)
         .catch((e) =>

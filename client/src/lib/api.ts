@@ -19,7 +19,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err: AxiosError) => {
-    if (err.response?.status === 401) {
+    // Faqat mavjud sessiya 401 qaytarsa logout qilamiz (login so'rovidagi
+    // noto'g'ri parol 401'ida token yo'q — keraksiz logout bo'lmaydi).
+    if (err.response?.status === 401 && useAuthStore.getState().token) {
       useAuthStore.getState().logout();
     }
     return Promise.reject(err);

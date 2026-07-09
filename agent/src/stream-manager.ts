@@ -34,7 +34,10 @@ interface StreamSession {
  */
 export class StreamManager {
   private readonly sessions = new Map<string, StreamSession>();
-  private readonly idleTimeoutMs = 60_000;
+  // Server har ~30s da `startStream` keepalive yuboradi (tomoshabin bor ekan),
+  // bu `lastTouch`ni yangilaydi. Timeout keepalive intervalidan xavfsiz kattaroq
+  // bo'lishi shart — aks holda tirik stream noto'g'ri yopiladi.
+  private readonly idleTimeoutMs = 90_000;
 
   /**
    * @param onFrame Har yangi kadr server'ga forward qilish uchun callback.
@@ -47,7 +50,9 @@ export class StreamManager {
    * chaqirilsa ham bitta sessiya bo'ladi.
    */
   start(deviceId: string, client: IsapiClient, fps = 3): void {
-    const cleanFps = Math.max(0.2, Math.min(10, fps));
+    // NaN/Infinity himoyasi — aks holda intervalMs=NaN → issiq polling loop.
+    const safeFps = Number.isFinite(fps) ? fps : 3;
+    const cleanFps = Math.max(0.2, Math.min(10, safeFps));
     const existing = this.sessions.get(deviceId);
     if (existing) {
       existing.lastTouch = Date.now();
@@ -147,10 +152,12 @@ export class StreamManager {
   ): Promise<void> {
     if (this.sessions.get(deviceId) !== session) return; // stop'dan keyin dropped
 
-    // Idle timeout — server stop'ni yo'qotsa ham agent o'zi to'xtaydi.
+    // Idle timeout — server keepalive to'xtasa (server crash / socket uzilishi)
+    // agent o'zi polling'ni to'xtatadi. Server qayta ulanib startStream yuborsa
+    // stream avtomatik tiklanadi.
     if (Date.now() - session.lastTouch > this.idleTimeoutMs) {
       logger.warn(
-        `⏰ stream idle timeout (60s, browser crash?): ${deviceId} avto-yopildi`,
+        `⏰ stream idle timeout (${Math.round(this.idleTimeoutMs / 1000)}s, keepalive yo'q): ${deviceId} avto-yopildi`,
       );
       this.stop(deviceId);
       return;

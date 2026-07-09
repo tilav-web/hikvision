@@ -10,6 +10,18 @@ import { StreamManager } from './stream-manager';
 async function main(): Promise<void> {
   setLevel(config.logLevel);
 
+  // Global himoya — buzilgan payload yoki kutilmagan xato nazoratsiz on-prem
+  // binarni yiqitmasin. Log qilamiz va ishlashda davom etamiz.
+  process.on('unhandledRejection', (reason) => {
+    logger.error(
+      'unhandledRejection:',
+      reason instanceof Error ? reason.message : String(reason),
+    );
+  });
+  process.on('uncaughtException', (err) => {
+    logger.error('uncaughtException:', err.message);
+  });
+
   logger.info('───────────────────────────────────────────────');
   logger.info(`Hikvision Agent boshlanmoqda`);
   logger.info(`  server : ${config.serverUrl}`);

@@ -50,6 +50,11 @@ export class CommandHandler {
   ) {}
 
   async execute(cmd: CommandEnvelope): Promise<CommandResult> {
+    // Buzilgan/bo'sh payload — crash o'rniga xato natija qaytaramiz.
+    if (!cmd || typeof cmd.action !== 'string') {
+      logger.warn('exec: yaroqsiz buyruq (action yo\'q)');
+      return { id: cmd?.id ?? 'unknown', success: false, error: 'invalid command' };
+    }
     logger.debug(`exec ${cmd.action} on ${cmd.deviceId}`);
     try {
       const data = await this.dispatch(cmd);
