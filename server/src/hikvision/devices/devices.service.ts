@@ -1,13 +1,15 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { DeviceEntity } from '../entities/device.entity';
 import { AgentEntity } from '../entities/agent.entity';
 import { IsapiClient } from '../isapi/isapi.client';
@@ -16,6 +18,7 @@ import { AuthUser } from '../../auth/current-user.decorator';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
 import { AgentsGateway } from '../agents/agents.gateway';
+import { EventsGateway } from '../events/events.gateway';
 import { CompaniesService } from '../../companies/companies.service';
 import { AuditService } from '../../audit/audit.service';
 
@@ -31,9 +34,32 @@ export class DevicesService {
     private readonly agentRepo: Repository<AgentEntity>,
     private readonly cfg: ConfigService,
     private readonly agentsGateway: AgentsGateway,
+    @Inject(forwardRef(() => EventsGateway))
+    private readonly eventsGateway: EventsGateway,
     private readonly companies: CompaniesService,
     private readonly audit: AuditService,
   ) {}
+
+  /**
+   * Eskirgan qurilmalarni offline deb belgilash — heartbeat/event `thresholdMs`
+   * ichida kelmagan bo'lsa. BullMQ repeatable job va qo'lda chaqiriladi.
+   * Har o'zgargan qurilma uchun `device:status` emit qilinadi (UI yangilanadi).
+   */
+  async sweepOffline(thresholdMs = 180_000): Promise<number> {
+    const cutoff = new Date(Date.now() - thresholdMs);
+    const stale = await this.repo.find({
+      where: { isOnline: true, lastSeenAt: LessThan(cutoff) },
+    });
+    for (const d of stale) {
+      d.isOnline = false;
+      await this.repo.save(d);
+      this.eventsGateway.emitDeviceStatus(d.id, false, d.companyId);
+    }
+    if (stale.length > 0) {
+      this.logger.log(`🔌 ${stale.length} qurilma offline deb belgilandi`);
+    }
+    return stale.length;
+  }
 
   // ───────── CRUD ─────────
 

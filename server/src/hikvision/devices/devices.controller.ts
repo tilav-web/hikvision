@@ -33,6 +33,18 @@ export class DevicesController {
     return this.service.create(current, dto);
   }
 
+  @Post('sweep-offline')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary:
+      'Eskirgan qurilmalarni offline deb belgilash (qo\'lda; odatda cron har 2 daqiqada)',
+  })
+  async sweepOffline(@Query('thresholdSec') thresholdSec?: string) {
+    const ms = thresholdSec ? parseInt(thresholdSec, 10) * 1000 : undefined;
+    const offline = await this.service.sweepOffline(ms);
+    return { offline };
+  }
+
   @Get()
   @Roles('super_admin', 'company_admin')
   @ApiOperation({ summary: 'Aparatlar ro\'yxati' })

@@ -14,6 +14,10 @@ import { VacationEntity } from './entities/vacation.entity';
 import { DevicesService } from './devices/devices.service';
 import { DeviceSyncService } from './devices/device-sync.service';
 import { DevicesController } from './devices/devices.controller';
+import {
+  DeviceMonitorProcessor,
+  DEVICE_MONITOR_QUEUE,
+} from './devices/device-monitor.processor';
 import { PersonsService } from './persons/persons.service';
 import { PersonsImportService } from './persons/persons-import.service';
 import { PersonsController } from './persons/persons.controller';
@@ -46,6 +50,7 @@ import { TelegramModule } from '../telegram/telegram.module';
     CompaniesModule,
     TelegramModule,
     BullModule.registerQueue({ name: ATTENDANCE_QUEUE }),
+    BullModule.registerQueue({ name: DEVICE_MONITOR_QUEUE }),
     TypeOrmModule.forFeature([
       AgentEntity,
       DeviceEntity,
@@ -73,6 +78,7 @@ import { TelegramModule } from '../telegram/telegram.module';
   providers: [
     DevicesService,
     DeviceSyncService,
+    DeviceMonitorProcessor,
     PersonsService,
     PersonsImportService,
     EventsService,
