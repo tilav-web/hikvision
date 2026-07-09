@@ -19,6 +19,7 @@ import { VacationsPage } from '@/pages/vacations-page';
 import { StatisticsPage } from '@/pages/statistics-page';
 import { TelegramChannelsPage } from '@/pages/telegram-channels-page';
 import { AuditLogsPage } from '@/pages/audit-logs-page';
+import { CamerasPage } from '@/pages/cameras-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 
 export const router = createBrowserRouter([
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
           // Both roles (server scope's by company_id)
           { path: '/agents', element: <AgentsPage /> },
           { path: '/devices', element: <DevicesPage /> },
+          { path: '/cameras', element: <CamerasPage /> },
           { path: '/persons', element: <PersonsPage /> },
           { path: '/persons/:id', element: <PersonDetailPage /> },
           { path: '/attendance', element: <AttendancePage /> },
