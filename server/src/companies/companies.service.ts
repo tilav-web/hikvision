@@ -14,6 +14,13 @@ function generateApiToken(): string {
   return crypto.randomBytes(32).toString('base64url');
 }
 
+/** Server mahalliy sanasi (YYYY-MM-DD). */
+function todayStr(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 @Injectable()
 export class CompaniesService {
   constructor(
@@ -33,6 +40,19 @@ export class CompaniesService {
 
   async findByApiToken(token: string): Promise<CompanyEntity | null> {
     return this.repo.findOne({ where: { apiToken: token } });
+  }
+
+  /**
+   * Kompaniya faol va to'lovi amal qilmoqdami? status='active' bo'lishi va
+   * paidUntil (agar belgilangan bo'lsa) o'tmaganligi shart.
+   */
+  isActive(company: CompanyEntity): boolean {
+    if (company.status !== 'active') return false;
+    if (company.paidUntil) {
+      const until = String(company.paidUntil).slice(0, 10);
+      if (todayStr() > until) return false; // to'lov muddati o'tgan
+    }
+    return true;
   }
 
   async create(dto: CreateCompanyDto): Promise<CompanyEntity> {

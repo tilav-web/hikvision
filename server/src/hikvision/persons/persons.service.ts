@@ -20,6 +20,7 @@ import { UpdatePersonDto } from './dto/update-person.dto';
 import { IsapiUserInfo } from '../isapi/isapi.types';
 import { AgentsGateway } from '../agents/agents.gateway';
 import { AuthUser } from '../../auth/current-user.decorator';
+import { CompaniesService } from '../../companies/companies.service';
 
 const FACE_DIR = path.join(process.cwd(), 'uploads', 'faces');
 
@@ -36,6 +37,7 @@ export class PersonsService {
     private readonly deviceRepo: Repository<DeviceEntity>,
     private readonly devicesService: DevicesService,
     private readonly agentsGateway: AgentsGateway,
+    private readonly companies: CompaniesService,
   ) {}
 
   // ───────── CRUD ─────────
@@ -64,6 +66,17 @@ export class PersonsService {
       current.role === 'company_admin' ? current.companyId : dto.companyId;
     if (!companyId) {
       throw new BadRequestException('companyId shart');
+    }
+
+    // Kvota — tarif limitidan oshmasin.
+    const company = await this.companies.findById(companyId);
+    if (company.maxEmployees > 0) {
+      const count = await this.personRepo.count({ where: { companyId } });
+      if (count >= company.maxEmployees) {
+        throw new BadRequestException(
+          `Hodim limiti to'lgan (${company.maxEmployees}) — tarifni oshiring`,
+        );
+      }
     }
 
     const userProvided = !!dto.employeeNo?.trim();

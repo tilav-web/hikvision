@@ -88,7 +88,16 @@ Zaif tomonlari (quyida batafsil): **testlar umuman yo'q (0 ta)**, **migratsiyala
 
 **Tekshiruv:** to'liq Docker stack boot ✅ · jonli server'da passwordHash oqmasligi va apiToken faqat super_admin'ga ✅ · finalize-day BullMQ job Redis'da ✅ · 3 paket tsc + build toza.
 
-> **Redis endi mavjud** — bu kamera **Bosqich 3 (WebRTC signaling)** va kelajakdagi yangi feature'lar (refresh-token blocklist, cache, og'ir sync/import queue'lari) uchun poydevor. Qolgan bandlar (O2 kvota, O7–O13, P1/P4/P5/P8–P14, kamera Bosqich 2/3, Excel eksport, refresh-token, audit-log va h.k.) pastdagi bo'limlarda.
+> **Redis endi mavjud** — bu kamera **Bosqich 3 (WebRTC signaling)** va kelajakdagi yangi feature'lar (refresh-token blocklist, cache, og'ir sync/import queue'lari) uchun poydevor.
+
+### 1.3. Uchinchi sessiya: ketma-ket yaxshilanishlar (har biri alohida commit + jonli test)
+
+1. **Umumiy Redis client + health-check** — global `RedisModule` (tez-fail ioredis), `/health` endi Redis'ni ham ping qiladi. Blocklist/cache uchun poydevor. ✅ jonli: `{db:ok, redis:ok}`.
+2. **Excel eksport** (yangi feature) — `exceljs`; `GET /hikvision/attendance/export` har hodim bo'yicha `.xlsx`; statistics sahifasida "Excel yuklab olish" tugmasi. ✅ jonli: valid xlsx (PK, Microsoft Excel 2007+).
+3. **JWT bekor qilish (P5)** — token `jti` + Redis blocklist; `POST /auth/logout` token'ni darhol bekor qiladi; client logout uni chaqiradi. ✅ jonli: logout'dan keyin o'sha token 401.
+4. **Kamera binar kadrlar** — base64 → Buffer/ArrayBuffer butun zanjirda (~33% kam trafik). ✅ jonli: server relay binar kadrni to'g'ri uzatadi, baytlar mos.
+
+> Qolgan bandlar (O2 kvota, O7–O13, P1/P4/P8–P14, kamera Bosqich 2/3 grid+WebRTC, bulk import, audit-log, mobil nav va h.k.) navbatda — ketma-ket davom etadi.
 
 ---
 

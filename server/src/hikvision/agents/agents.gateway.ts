@@ -108,9 +108,9 @@ export class AgentsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.disconnect(true);
       return;
     }
-    if (company.status !== 'active') {
+    if (!this.companies.isActive(company)) {
       this.logger.warn(
-        `agent rad etildi: kampaniya ${company.slug} faol emas`,
+        `agent rad etildi: kampaniya ${company.slug} faol emas yoki to'lov muddati o'tgan`,
       );
       client.disconnect(true);
       return;

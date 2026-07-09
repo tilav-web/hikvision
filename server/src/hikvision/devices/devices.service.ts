@@ -16,6 +16,7 @@ import { AuthUser } from '../../auth/current-user.decorator';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
 import { AgentsGateway } from '../agents/agents.gateway';
+import { CompaniesService } from '../../companies/companies.service';
 
 @Injectable()
 export class DevicesService {
@@ -29,6 +30,7 @@ export class DevicesService {
     private readonly agentRepo: Repository<AgentEntity>,
     private readonly cfg: ConfigService,
     private readonly agentsGateway: AgentsGateway,
+    private readonly companies: CompaniesService,
   ) {}
 
   // ───────── CRUD ─────────
@@ -62,6 +64,17 @@ export class DevicesService {
       throw new ForbiddenException(
         "boshqa kampaniya qurilmasiga ruxsat yo'q",
       );
+    }
+
+    // Kvota — tarif limitidan oshmasin.
+    const company = await this.companies.findById(companyId);
+    if (company.maxDevices > 0) {
+      const count = await this.repo.count({ where: { companyId } });
+      if (count >= company.maxDevices) {
+        throw new BadRequestException(
+          `Qurilma limiti to'lgan (${company.maxDevices}) — tarifni oshiring`,
+        );
+      }
     }
 
     const useHttps = dto.useHttps ?? false;
