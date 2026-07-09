@@ -36,15 +36,22 @@ Zaif tomonlari (quyida batafsil): **testlar umuman yo'q (0 ta)**, **migratsiyala
 | K4 | `DB_SYNC=true` + migratsiyalar yo'q | 🔴 Kritik | server | ✅ (guardrail) |
 | Y1 | Kamera stream 60s da uziladi | 🟠 Yuqori | agent | ✅ |
 | Y2 | CORS har qanday origin'ni credential bilan aks ettiradi | 🟠 Yuqori | server | ✅ |
-| Y3 | Pagination yo'q — ro'yxatlar 50 tada kesiladi | 🟠 Yuqori | client/server | ⬜ |
+| Y3 | Pagination yo'q — ro'yxatlar 50 tada kesiladi | 🟠 Yuqori | client/server | ✅ |
 | Y4 | `syncTime` qurilma soatini 5 soatga xato qo'yadi | 🟠 Yuqori | agent | ✅ |
 | Y5 | Buzilgan payload butun agentni crash qiladi | 🟠 Yuqori | agent | ✅ |
-| Y6 | "Absent" kunlar hech qachon yozilmaydi | 🟠 Yuqori | server | ⬜ |
+| Y6 | "Absent" kunlar hech qachon yozilmaydi | 🟠 Yuqori | server | ✅ (BullMQ cron) |
+| O1 | `Partial<Dto>` validatsiyani chetlab o'tadi | 🟡 O'rta | server | ✅ |
+| O3 | super_admin schedules/holidays/penalties'ga kira olmaydi | 🟡 O'rta | server | ✅ |
 | O4 | `trust proxy` yo'q (throttler/IP) | 🟡 O'rta | server | ✅ |
 | O5 | Event receiver throttle'ga tushadi | 🟡 O'rta | server | ✅ |
 | O6 | Swagger prod'da ochiq | 🟡 O'rta | server | ✅ |
+| O11 | company_admin uchun kafolatlangan 403 (`useCompanies`) | 🟡 O'rta | client | ✅ |
+| P2 | Health DB xato matnini oshkor qiladi | ⚪ Past | server | ✅ |
 | P3 | `enableShutdownHooks()` yo'q | ⚪ Past | server | ✅ |
-| Boshqa O/P | (quyida ro'yxat) | 🟡/⚪ | hammasi | ⬜ |
+| P6 | telegram chatId bigint overflow | ⚪ Past | server | ✅ |
+| P7 | enabledEvents cheklanmagan | ⚪ Past | server | ✅ |
+| — | **Redis + Docker + BullMQ infratuzilma** | ➕ Yangi | server | ✅ |
+| Qolgan O/P | O2, O7–O13(qisman), P1, P4–P14 | 🟡/⚪ | hammasi | ⬜ |
 
 ### 1.1. Shu sessiyada bajarilgan o'zgarishlar
 
@@ -65,7 +72,23 @@ Zaif tomonlari (quyida batafsil): **testlar umuman yo'q (0 ta)**, **migratsiyala
 
 **Tekshiruv:** uchala paket ham `tsc` dan xatosiz o'tadi; server `nest build` toza; serializatsiya va syncTime runtime-testlari o'tdi.
 
-> Qolgan bandlar (Y3 pagination, Y6 absent-cron, O1–O13, P1–P14, kamera Bosqich 2/3, yangi feature'lar) hali bajarilmagan — pastdagi bo'limlarda batafsil.
+### 1.2. Ikkinchi sessiya: Redis + Docker + BullMQ + qo'shimcha
+
+**Infratuzilma (server/):**
+- `Dockerfile` (multi-stage, non-root), `docker-compose.yml` (backend + PostgreSQL + Redis, healthcheck, volumes), `.dockerignore`. **Backend endi to'liq Docker'da ishga tushadi** — sinovda pg+redis+server muvaffaqiyatli boot bo'ldi.
+- **Redis integratsiyasi 3 joyda:** BullMQ (fon-vazifalar) · throttler storage (rate-limit restart'da nollanmaydi, instanslar aro umumiy) · Socket.IO Redis adapter (WebSocket'lar gorizontal masshtablanadi).
+
+**Y6 — absent-cron (BullMQ repeatable job, cron o'rniga):**
+- `AttendanceService.finalizeDay()` — kelmagan hodimlarga absent, ochiq kunlarni yopish (faqat schedule ish kunlari; bayram/ta'til hisobga olinadi). Mantiq alohida metodda — kelajakda boshqa trigger ham chaqira oladi.
+- Har kuni 00:30 (Asia/Tashkent) repeatable job + `POST /hikvision/attendance/finalize-day` (qo'lda backfill).
+
+**Y3 — pagination:** persons-page sahifalash UI (Oldingi/Keyingi, "X–Y / total"), 300ms debounce'li qidiruv, picker'lar (payroll/vacations) 1000 tagacha.
+
+**Qo'shimcha tuzatishlar:** O1 (Update DTO validatsiyasi), O3 (super_admin rollari), O11 (company_admin 403 spam), P2 (health xato yashirish), P6 (chatId overflow), P7 (enabledEvents validatsiya).
+
+**Tekshiruv:** to'liq Docker stack boot ✅ · jonli server'da passwordHash oqmasligi va apiToken faqat super_admin'ga ✅ · finalize-day BullMQ job Redis'da ✅ · 3 paket tsc + build toza.
+
+> **Redis endi mavjud** — bu kamera **Bosqich 3 (WebRTC signaling)** va kelajakdagi yangi feature'lar (refresh-token blocklist, cache, og'ir sync/import queue'lari) uchun poydevor. Qolgan bandlar (O2 kvota, O7–O13, P1/P4/P5/P8–P14, kamera Bosqich 2/3, Excel eksport, refresh-token, audit-log va h.k.) pastdagi bo'limlarda.
 
 ---
 

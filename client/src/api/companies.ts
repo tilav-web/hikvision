@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Company, CompanyStatus } from './types';
 
 const KEY = ['companies'] as const;
@@ -18,9 +19,13 @@ export interface CompanyInput {
 }
 
 export function useCompanies() {
+  // /companies faqat super_admin uchun — company_admin uchun so'rov yubormaymiz
+  // (aks holda har sahifada kafolatlangan 403 + konsol shovqini).
+  const role = useAuthStore((s) => s.user?.role);
   return useQuery({
     queryKey: KEY,
     queryFn: async () => (await api.get<Company[]>('/companies')).data,
+    enabled: role === 'super_admin',
   });
 }
 
