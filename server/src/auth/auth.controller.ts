@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
 import { Public } from './public.decorator';
 import { CurrentUser, AuthUser } from './current-user.decorator';
 
@@ -19,9 +20,20 @@ export class AuthController {
   })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with email and password' })
+  @ApiOperation({ summary: 'Login — access + refresh token qaytaradi' })
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto.email, dto.password);
+  }
+
+  @Public()
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh — access muddati tugagach yangi juftlik (rotatsiya)',
+  })
+  refresh(@Body() dto: RefreshDto) {
+    return this.auth.refresh(dto.refreshToken);
   }
 
   @Get('me')
@@ -35,11 +47,14 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Logout — joriy token darhol bekor qilinadi (Redis blocklist)',
+    summary: 'Logout — access + refresh token darhol bekor qilinadi',
   })
-  async logout(@CurrentUser() user: AuthUser) {
+  async logout(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { refreshToken?: string },
+  ) {
     if (user.jti && user.exp) {
-      await this.auth.logout(user.jti, user.exp);
+      await this.auth.logout(user.jti, user.exp, body?.refreshToken);
     }
     return { ok: true };
   }

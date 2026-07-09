@@ -39,4 +39,41 @@ export class TokenBlocklistService {
       return false;
     }
   }
+
+  // ───── Refresh token whitelist (rotatsiya + reuse-detection) ─────
+
+  private refreshKey(jti: string): string {
+    return `rt:${jti}`;
+  }
+
+  /** Refresh token'ni whitelist'ga qo'shish (amal muddatigacha). */
+  async allowRefresh(jti: string, userId: string, ttlSec: number): Promise<void> {
+    try {
+      await this.redis.set(this.refreshKey(jti), userId, 'EX', Math.max(1, ttlSec));
+    } catch (e) {
+      this.logger.warn(`refresh whitelist xato: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * Refresh token amaldami? Whitelist'da bo'lsa — ha. Rotatsiyada eski token
+   * o'chiriladi, shuning uchun qayta ishlatilgan (o'g'irlangan) token rad etiladi.
+   * Redis o'chiq bo'lsa — fail-closed (refresh xavfsizlik nuqtasi).
+   */
+  async isRefreshValid(jti: string): Promise<boolean> {
+    try {
+      return (await this.redis.exists(this.refreshKey(jti))) === 1;
+    } catch (e) {
+      this.logger.warn(`refresh tekshirish xato (fail-closed): ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  async revokeRefresh(jti: string): Promise<void> {
+    try {
+      await this.redis.del(this.refreshKey(jti));
+    } catch (e) {
+      this.logger.warn(`refresh revoke xato: ${(e as Error).message}`);
+    }
+  }
 }

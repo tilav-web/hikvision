@@ -4,6 +4,7 @@ import { useAuthStore, type AuthUser } from '@/stores/auth-store';
 
 interface LoginResponse {
   accessToken: string;
+  refreshToken: string;
   user: AuthUser;
 }
 
@@ -15,7 +16,7 @@ export function useLogin() {
       return data;
     },
     onSuccess: (data) => {
-      setAuth(data.accessToken, data.user);
+      setAuth(data.accessToken, data.user, data.refreshToken);
     },
   });
 }

@@ -11,8 +11,10 @@ export interface JwtPayload {
   email: string;
   role: 'super_admin' | 'company_admin';
   companyId: string | null;
-  /** Token identifikatori — bekor qilish (blocklist) uchun. */
+  /** Token identifikatori — bekor qilish (blocklist/whitelist) uchun. */
   jti?: string;
+  /** 'access' (default) yoki 'refresh'. Refresh token access sifatida ishlamaydi. */
+  type?: 'access' | 'refresh';
   /** Amal muddati (unix soniya) — jwt tomonidan avtomatik qo'yiladi. */
   exp?: number;
 }
@@ -32,6 +34,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<AuthUser> {
+    // Refresh token access sifatida ishlatilmasin (faqat /auth/refresh uchun).
+    if (payload.type === 'refresh') {
+      throw new UnauthorizedException('refresh token access uchun ishlamaydi');
+    }
     // Bekor qilingan (logout qilingan) token — darhol rad etamiz.
     if (payload.jti && (await this.blocklist.isRevoked(payload.jti))) {
       throw new UnauthorizedException('token bekor qilingan');
