@@ -10,6 +10,7 @@ import Redis from 'ioredis';
 import { join } from 'path';
 import { typeOrmAsyncConfig } from './config/typeorm.config';
 import { redisConnection } from './config/redis.config';
+import { RedisModule } from './redis/redis.module';
 import { HikvisionModule } from './hikvision/hikvision.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
@@ -51,6 +52,7 @@ import { TelegramModule } from './telegram/telegram.module';
         storage: new ThrottlerStorageRedisService(new Redis(redisConnection(cfg))),
       }),
     }),
+    RedisModule,
     UsersModule,
     AuthModule,
     CompaniesModule,
